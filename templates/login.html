@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Log In{% endblock %}
+
+{% block content %}
+    <div class="hero" style="animation: fadeIn 1s ease-in;">
+        <h1>Log In to Your Account</h1>
+        <p>Access your payment portal by signing in below.</p>
+    </div>
+
+    <div class="card">
+        <h3>Sign In</h3>
+        <p>
+            <label for="login">Username or Email:</label><br>
+            <input type="text" id="login" placeholder="Enter your username or email" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
+            <label for="password">Password:</label><br>
+            <input type="password" id="password" placeholder="Enter your password" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
+        </p>
+        <button id="login-btn" class="btn" style="animation: bounce 0.3s ease-in-out;">Log In</button>
+        <a href="/" class="btn" style="margin-left: 1rem; background: #e0e0e0; color: #2c3e50; animation: bounce 0.3s ease-in-out 0.1s;">Back to Dashboard</a>
+    </div>
+
+    <style>
+        /* Fade-in animation for hero */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Bounce animation for buttons */
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        /* Input field focus state */
+        input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.4);
+        }
+    </style>
+
+    <script>
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const login = document.getElementById('login').value;
+            const password = document.getElementById('password').value;
+
+            if (!login || !password) {
+                alert('Please enter both username and password.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ login, password })
+                });
+
+                if (response.ok) {
+                    const fullUrl = window.location.href;
+                    const redirectParam = new URL(fullUrl).searchParams.get("redirect");
+                    window.location.href = redirectParam || '/';
+                } else {
+                    const errorData = await response.json();
+                    alert('Login failed: ' + (errorData.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('An error occurred: ' + error.message);
+            }
+        });
+    </script>
+{% endblock %}

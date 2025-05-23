@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}Merchant Portal{% endblock %}
+
+{% block content %}
+    <div class="hero" style="animation: fadeIn 1s ease-in;">
+        <h1>Merchant Payment Portal {{ user.login|default("Merchant") }}</h1>
+        <p>Create and monitor payment transactions with ease.</p>
+    </div>
+
+    <div class="card">
+        <h3>Create New Transaction</h3>
+        <p>
+            <label for="amount">Amount ($):</label><br>
+            <input type="number" id="amount" placeholder="Enter amount" step="0.01" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
+        </p>
+        <button id="start-payment-btn" class="btn" style="animation: bounce 0.3s ease-in-out;">Start Transaction</button>
+        <a href="/" class="btn" style="margin-left: 1rem; background: #e0e0e0; color: #2c3e50; animation: bounce 0.3s ease-in-out 0.1s;">Back to Dashboard</a>
+    </div>
+
+    <div class="card" id="active-transactions" style="display: none; animation: fadeIn 1s ease-in;">
+        <h3>Active Transactions</h3>
+        <div id="transaction-list"></div>
+    </div>
+
+    <div class="card" style="animation: fadeIn 1s ease-in;">
+        <h3>Transaction History</h3>
+        <table style="width: 100%; border-collapse: collapse; color: #e0e0e0;">
+            <thead>
+                <tr style="background: rgba(255, 255, 255, 0.1);">
+                    <th style="padding: 0.8rem; text-align: left;">ID</th>
+                    <th style="padding: 0.8rem; text-align: left;">Amount</th>
+                    <th style="padding: 0.8rem; text-align: left;">Date</th>
+                    <th style="padding: 0.8rem; text-align: left;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="transaction-history"></tbody>
+        </table>
+    </div>
+
+    <div id="payment-notification" class="card" style="display: none; position: fixed; top: 20px; right: 20px; animation: slideIn 0.5s ease-in; z-index: 1000;">
+        <h3>Payment Completed!</h3>
+        <p>
+            <strong>Code:</strong> <span id="notification-code"></span><br>
+            <strong>Amount:</strong> $<span id="notification-amount"></span><br>
+            <strong>Completed At:</strong> <span id="notification-completed_at"></span>
+        </p>
+        <button id="close-notification" class="btn" style="background: #e0e0e0; color: #2c3e50;">Close</button>
+    </div>
+
+    <canvas id="confetti-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999;"></canvas>
+
+    <style>
+        /* Fade-in animation for sections */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Bounce animation for buttons */
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        /* Slide-in animation for notification */
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        /* Input field focus state */
+        input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Table styling */
+        table tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        table th, table td {
+            padding: 0.8rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>
+        // Base64-encoded success sound (short chime, ~2s)
+        const successSound = new Audio('data:audio/mp3;base64,/+MYxAAEaAIEeUAxNAAAAA...'); // Placeholder; replace with actual base64 or hosted URL
+
+        // Initialize WebSocket
+        const ws = new WebSocket(`ws://${window.location.host}/api/merchant/ws?token={{ acess_token }}`);
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+        };
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'payment_completed') {
+                showPaymentNotification(data);
+                playSuccessSound();
+                triggerConfetti();
+                loadTransactionHistory(); // Refresh history
+            }
+        };
+        ws.onclose = () => {
+            console.log('WebSocket disconnected');
+        };
+
+        // Animation and sound functions
+        function showPaymentNotification(data) {
+            document.getElementById('notification-code').textContent = data.code || 'N/A';
+            document.getElementById('notification-amount').textContent = parseFloat(data.amount || 0).toFixed(2);
+            document.getElementById('notification-completed_at').textContent = data.completed_at || 'N/A';
+            document.getElementById('payment-notification').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('payment-notification').style.display = 'none';
+            }, 5000); // Hide after 5 seconds
+        }
+
+        function playSuccessSound() {
+            successSound.play().catch(error => console.error('Sound playback failed:', error));
+        }
+
+        function triggerConfetti() {
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+        }
+
+        // Close notification button
+        document.getElementById('close-notification').addEventListener('click', () => {
+            document.getElementById('payment-notification').style.display = 'none';
+        });
+
+        // Load transactions and resume polling on page load
+        window.addEventListener('load', () => {
+            loadTransactionHistory();
+            resumePolling();
+        });
+
+        async function startTransaction() {
+            const amount = parseFloat(document.getElementById('amount').value);
+
+            if (!amount || amount <= 0) {
+                alert('Please enter a positive amount.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/start_payment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ amount })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    alert('Failed to start transaction: ' + (errorData.detail || 'Unknown error'));
+                    return;
+                }
+
+                const data = await response.json();
+                const { code, watch_code } = data;
+
+                // Add transaction to active transactions
+                addActiveTransaction({ code, amount, watch_code });
+
+                // Save watch_code to localStorage
+                const watchCodes = JSON.parse(localStorage.getItem('watch_codes') || '[]');
+                watchCodes.push(watch_code);
+                localStorage.setItem('watch_codes', JSON.stringify(watchCodes));
+
+                // Start polling for this transaction
+                pollTransactionStatus(watch_code);
+
+                // Refresh transaction history
+                loadTransactionHistory();
+            } catch (error) {
+                alert('An error occurred: ' + error.message);
+            }
+        }
+
+        function addActiveTransaction({ code, amount, watch_code }) {
+            const transactionList = document.getElementById('transaction-list');
+            const transactionDiv = document.createElement('div');
+            transactionDiv.className = 'transaction-card';
+            transactionDiv.id = `transaction-${watch_code}`;
+            transactionDiv.innerHTML = `
+                <p>
+                    <strong>Payment Code:</strong> <span id="code-${watch_code}">${code}</span><br>
+                    <strong>Amount:</strong> $<span id="amount-${watch_code}">${amount.toFixed(2)}</span><br>
+                    <strong>Status:</strong> <span id="status-${watch_code}">created</span><br>
+                    <strong>Created At:</strong> <span id="created_at-${watch_code}">N/A</span><br>
+                    <strong>Completed At:</strong> <span id="completed_at-${watch_code}">N/A</span><br>
+                    <strong>Payment Link:</strong> <a id="payment-link-${watch_code}" href="/pay/${code}" target="_blank">/pay/${code}</a><br>
+                </p>
+                <h4>QR Code</h4>
+                <img id="qr-code-${watch_code}" src="/generate_qr/${code}" alt="QR Code" style="max-width: 200px; bezpieczeństwa-radius: 10px; margin-top: 1rem;">
+            `;
+            transactionList.appendChild(transactionDiv);
+            document.getElementById('active-transactions').style.display = 'block';
+        }
+
+        async function pollTransactionStatus(watch_code) {
+            try {
+                const response = await fetch(`/watch/${watch_code}`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('Failed to fetch transaction status:', errorData.detail);
+                    return;
+                }
+
+                const data = await response.json();
+                document.getElementById(`status-${watch_code}`).textContent = data.status || 'N/A';
+                document.getElementById(`created_at-${watch_code}`).textContent = data.created_at || 'N/A';
+                document.getElementById(`completed_at-${watch_code}`).textContent = data.completed_at || 'N/A';
+
+                // Continue polling if status is not final
+                if (data.status !== 'completed' && data.status !== 'failed') {
+                    setTimeout(() => pollTransactionStatus(watch_code), 5000);
+                } else {
+                    // Remove from localStorage if status is final
+                    const watchCodes = JSON.parse(localStorage.getItem('watch_codes') || '[]');
+                    const updatedWatchCodes = watchCodes.filter(code => code !== watch_code);
+                    localStorage.setItem('watch_codes', JSON.stringify(updatedWatchCodes));
+                }
+            } catch (error) {
+                console.error('Polling error:', error);
+            }
+        }
+
+        async function loadTransactionHistory() {
+            try {
+                const response = await fetch('/api/transactions');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    alert('Failed to fetch transaction history: ' + (errorData.detail || 'Unknown error'));
+                    return;
+                }
+
+                const data = await response.json();
+                const historyTable = document.getElementById('transaction-history');
+                historyTable.innerHTML = '';
+
+                data.transactions.forEach(transaction => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${transaction.id}</td>
+                        <td>$${parseFloat(transaction.amount).toFixed(2)}</td>
+                        <td>${transaction.date || 'N/A'}</td>
+                        <td>${transaction.state || 'N/A'}</td>
+                    `;
+                    historyTable.appendChild(row);
+                });
+            } catch (error) {
+                alert('An error occurred while fetching transaction history: ' + error.message);
+            }
+        }
+
+        function resumePolling() {
+            const watchCodes = JSON.parse(localStorage.getItem('watch_codes') || '[]');
+            watchCodes.forEach(watch_code => {
+                fetch(`/watch/${watch_code}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        addActiveTransaction({
+                            code: data.code || watch_code,
+                            amount: data.amount || 0,
+                            watch_code
+                        });
+                        pollTransactionStatus(watch_code);
+                    })
+                    .catch(error => console.error('Error resuming polling:', error));
+            });
+        }
+
+        document.getElementById('start-payment-btn').addEventListener('click', startTransaction);
+    </script>
+{% endblock %}

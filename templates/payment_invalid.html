@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Invalid Payment{% endblock %}
+
+{% block content %}
+    <div class="hero">
+        <h1>Payment Error</h1>
+        <p>Sorry, we couldn't process your payment. Let's get this fixed!</p>
+    </div>
+
+    <div class="card">
+        <h3>Error Information</h3>
+        <p>
+            <strong>Code:</strong> {{ code|default("code not found") }}<br>
+            This could be due to invalid payment details or a temporary issue.
+        </p>
+        <p>
+            Please check your payment information and try again. Or ask the merchant for a new payment link. If the problem persists, contact support.
+        </p>    
+
+    </div>
+{% endblock %}

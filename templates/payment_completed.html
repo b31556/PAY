@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Success{% endblock %}
+
+{% block content %}
+    <div class="hero" style="animation: fadeIn 1s ease-in;">
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin: 0 auto 1rem; display: block;">
+            <path d="M20 6L9 17L4 12" stroke="#ffd700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="10" stroke="#ffd700" stroke-width="2" fill="none"/>
+        </svg>
+        <h1>Payment Completed Successfully!</h1>
+        <p>Hooray! Your payment is all done and processed.</p>
+    </div>
+
+    <div class="card">
+        <h3>Payment Details</h3>
+        <p>
+            <strong>Payment Code:</strong> {{ code|default("N/A") }}<br>
+            <strong>Amount:</strong> ${{ amount|default("0.00")|float|round(2) }}<br>
+            <strong>Merchant:</strong> {{ merchant|default("Unknown") }}<br>
+            <strong>Created At:</strong> {{ created_at|default("N/A") }}<br>
+            <strong>Completed At:</strong> {{ completed_at|default("N/A") }}<br>
+        </p>
+        <a href="/" class="btn" style="animation: bounce 0.3s ease-in-out;">Back to Dashboard</a>
+        <a href="/history" class="btn" style="margin-left: 1rem; background: #e0e0e0; color: #2c3e50; animation: bounce 0.3s ease-in-out 0.1s;">View Transaction History</a>
+    </div>
+
+    <style>
+        /* Fade-in animation for hero */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Bounce animation for buttons */
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+    </style>
+{% endblock %}
