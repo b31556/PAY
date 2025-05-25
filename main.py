@@ -19,7 +19,7 @@ connected_merchants: Dict[str, fastapi.WebSocket] = {}
 
 templates = Jinja2Templates(directory="templates")
 app = FastAPI()
-
+ 
 # Database setup
 engine = create_engine('sqlite:///db.db', echo=True)
 Base = declarative_base()
@@ -89,7 +89,6 @@ async def start_payment(request: fastapi.Request):
     amount = data.get("amount")
 
     
-
     if not amount or not merchant_secret:
         raise HTTPException(status_code=400, detail="Merchant and amount are required")
 
