@@ -15,7 +15,6 @@
             <input type="number" id="amount" placeholder="Enter amount" step="0.01" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
         </p>
         <button id="start-payment-btn" class="btn" style="animation: bounce 0.3s ease-in-out;">Start Transaction</button>
-        <a href="/" class="btn" style="margin-left: 1rem; background: #e0e0e0; color: #2c3e50; animation: bounce 0.3s ease-in-out 0.1s;">Back to Dashboard</a>
     </div>
 
     <div class="card" id="active-transactions" style="display: none; animation: fadeIn 1s ease-in;">
@@ -281,5 +280,38 @@
         }
 
         document.getElementById('start-payment-btn').addEventListener('click', startTransaction);
+
+        // Add revoke button logic for active transactions
+        function renderActiveTransactions(transactions) {
+            const container = document.getElementById('transaction-list');
+            container.innerHTML = '';
+            transactions.forEach(tx => {
+                const div = document.createElement('div');
+                div.style.marginBottom = '1rem';
+                div.innerHTML = `
+                    <b>Code:</b> ${tx.code} | <b>Amount:</b> ${tx.amount} | <b>Status:</b> ${tx.state}
+                    <button class="btn revoke-btn" data-code="${tx.code}" style="margin-left:1rem;background:#e74c3c;">Revoke</button>
+                `;
+                container.appendChild(div);
+            });
+            // Add event listeners
+            container.querySelectorAll('.revoke-btn').forEach(btn => {
+                btn.onclick = function() {
+                    const code = this.getAttribute('data-code');
+                    fetch('/api/transaction/revoke', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({code}),
+                        credentials: 'same-origin'
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        alert(data.message || 'Transaction revoked');
+                        location.reload();
+                    })
+                    .catch(() => alert('Failed to revoke transaction'));
+                };
+            });
+        }
     </script>
 {% endblock %}

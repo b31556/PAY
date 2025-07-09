@@ -110,8 +110,27 @@
 </head>
 <body>
     <div class="container">
-        {% block content %}
-        {% endblock %}
+        {% block nav %}
+<nav style="background: #222; color: #fff; padding: 1rem; display: flex; align-items: center; justify-content: space-between;">
+    <div>
+        <a href="/" style="color: #fff; text-decoration: none; font-weight: bold; margin-right: 2rem;">Home</a>
+        <a href="/dashboard" style="color: #fff; text-decoration: none; margin-right: 1rem;">Consumer Dashboard</a>
+        <a href="/portal" style="color: #fff; text-decoration: none; margin-right: 1rem;">Merchant Portal</a>
+    </div>
+    <div>
+        {% if not user %}
+        <a href="/login?redirect={{ request.path }}" style="color: #fff; text-decoration: none; margin-right: 1rem;">Login</a>
+        <a href="/register?redirect={{ request.path }}" style="color: #fff; text-decoration: none;">Register</a>
+        {% else %}
+        <a href="/logout" style="color: #fff; text-decoration: none; margin-right: 1rem;">Logout</a>
+        <span style="color: #fff; margin-left: 1rem;">Welcome, {{ user.login }}</span>
+        {% endif %}
+    </div>
+</nav>
+{% endblock %}
+        <main style="margin-top: 2rem;">
+            {% block content %}{% endblock %}
+        </main>
     </div>
 </body>
 </html>

@@ -1,3 +1,10 @@
+
+URL = "http://100.104.43.55:8081"
+
+PORT = URL.split(":")[1] if ":" in URL else 4464
+
+DATABASE = "sqlite:///db.db"
+
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import declarative_base, sessionmaker
 import random
@@ -16,12 +23,11 @@ from fastapi import WebSocketDisconnect
 
 connected_merchants: Dict[str, fastapi.WebSocket] = {}
 
-
 templates = Jinja2Templates(directory="templates")
 app = FastAPI()
  
 # Database setup
-engine = create_engine('sqlite:///db.db', echo=True)
+engine = create_engine(DATABASE, echo=True)
 Base = declarative_base()
 Session = sessionmaker(bind=engine)
 session = Session()
@@ -67,7 +73,7 @@ Base.metadata.create_all(engine)
 @app.get("/generate_qr/{login}")
 def generate_qr_code(login: str):
 
-    login= f"http://100.104.43.55:8081/pay/{login}"
+    login= f"{URL}/pay/{login}"
     # QR-kód generálása
     qr = qrcode.make(login)
     # PNG kép beágyazása egy streambe
@@ -154,7 +160,7 @@ def pay_page(request: fastapi.Request, code: str):
     if transaction.state == "failed":
         return templates.TemplateResponse("payment_failed.html", {"request": request, "code": code, "redirect": redirecto})
     
-    return templates.TemplateResponse("payment.html", {"request": request, "code": code, "payment_secret": transaction.transaction_secret, "amount": transaction.amount, "is_already_logged_in": logged_in, "created_at": transaction.created_at, "redirect": redirecto})
+    return templates.TemplateResponse("payment.html", {"request": request, "code": code, "payment_secret": transaction.transaction_secret, "amount": transaction.amount, "is_already_logged_in": logged_in, "created_at": transaction.created_at, "redirect": redirecto, "user": user})
 
 @app.get("/dev/api")
 async def dev_api(request: fastapi.Request):
@@ -224,6 +230,30 @@ async def pay(request: fastapi.Request, code: str):
     session.commit()
     return templates.TemplateResponse("payment_completed.html", {"request": request, "code": code, "amount": transaction.amount, "merchant": transaction.merchant, "created_at": transaction.created_at, "completed_at": transaction.completed_at, "redirect": redirecto})
 
+@app.post("/api/transaction/revoke")
+async def revoke_transaction(request: fastapi.Request):
+    data = await request.json()
+    code = data.get("code")
+    if not code:
+        raise HTTPException(status_code=400, detail="Transaction code required")
+    cookies = request.cookies
+    acess_token = cookies.get("acess_token")
+    if not acess_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    user = session.query(User).filter_by(acess_token=acess_token).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    transaction = session.query(Transaction).filter_by(code=code).first()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if transaction.state != "created":
+        raise HTTPException(status_code=400, detail="Only active transactions can be revoked")
+    if transaction.merchant != user.login:
+        raise HTTPException(status_code=403, detail="You do not have permission to revoke this transaction")
+    transaction.state = "revoked"
+    session.commit()
+    return {"message": "Transaction revoked"}
+
 @app.get("/login")
 async def login(request: fastapi.Request):
     return templates.TemplateResponse("login.html", {"request": request})
@@ -281,6 +311,38 @@ async def get_transactions(request: fastapi.Request):
 .created_at, "state": transaction.state})
     return {"transactions": transaction_list}
 
+@app.get("/dashboard", response_class=HTMLResponse)
+async def user_dashboard(request: fastapi.Request):
+    cookies = request.cookies
+    acess_token = cookies.get("acess_token")
+    if not acess_token:
+        return fastapi.responses.RedirectResponse(url="/login?redirect=/dashboard", status_code=303)
+    user = session.query(User).filter_by(acess_token=acess_token).first()
+    if not user:
+        return fastapi.responses.RedirectResponse(url="/login?redirect=/dashboard", status_code=303)
+    return templates.TemplateResponse("dashboard.html", {"request": request, "user": user})
+
+@app.get("/api/user/transactions")
+async def get_user_transactions(request: fastapi.Request):
+    cookies = request.cookies
+    acess_token = cookies.get("acess_token")
+    if not acess_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    user = session.query(User).filter_by(acess_token=acess_token).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    transactions = session.query(Transaction).filter_by(card=user.card).all()
+    transaction_list = []
+    for transaction in transactions:
+        transaction_list.append({
+            "id": transaction.id,
+            "amount": transaction.amount,
+            "date": transaction.created_at,
+            "state": transaction.state,
+            "merchant": transaction.merchant
+        })
+    return {"transactions": transaction_list, "balance": user.amaunt}
+
 
 @app.websocket("/api/merchant/ws")
 async def websocket_endpoint(websocket: fastapi.WebSocket):
@@ -304,22 +366,31 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
         connected_merchants.pop(merchant.login, None)
 
 
-@app.post("/api/logout")
+@app.get("/logout")
 async def logout(request: fastapi.Request):
+    redirecto = request.query_params.get("redirect", "/")
     cookies = request.cookies
     acess_token = cookies.get("acess_token")
     if not acess_token:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        return fastapi.responses.RedirectResponse(url="/login", status_code=303)
 
     user = session.query(User).filter_by(acess_token=acess_token).first()
     if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        return fastapi.responses.RedirectResponse(url="/login", status_code=303)
     user.acess_token = None
     session.commit()
-    response = fastapi.Response()
+    response = fastapi.responses.RedirectResponse(url=redirecto, status_code=303)
     response.delete_cookie("acess_token")
+    return response
 
-
+@app.get("/", response_class=HTMLResponse)
+def index(request: fastapi.Request):
+    cookies = request.cookies
+    acess_token = cookies.get("acess_token")
+    user = None
+    if acess_token:
+        user = session.query(User).filter_by(acess_token=acess_token).first()
+    return templates.TemplateResponse("index.html", {"request": request, "user": user})
 
 
 import threading
@@ -327,4 +398,5 @@ import threading
 if __name__ == "__main__":
     # Start FastAPI server in a separate thread
     import uvicorn
-    threading.Thread(target=lambda: uvicorn.run(app, host='0.0.0.0', port=8081)).start()
+    threading.Thread(target=lambda: uvicorn.run(app, host='0.0.0.0', port=PORT)).start()
+

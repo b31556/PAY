@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}My Dashboard{% endblock %}
+
+{% block content %}
+    <div class="hero" style="animation: fadeIn 1s ease-in;">
+        <h1>Welcome, {{ user.login|default("User") }}</h1>
+        <p>Here you can view your card balance and transaction history.</p>
+    </div>
+    <!-- Navigation handled by base.html nav bar -->
+
+    <div class="card" style="animation: fadeIn 1s ease-in;">
+        <h3>Card Balance</h3>
+        <p style="font-size: 2rem; color: #4caf50;">${{ user.amaunt }}</p>
+    </div>
+
+    <div class="card" style="animation: fadeIn 1s ease-in;">
+        <h3>Transaction History</h3>
+        <table style="width: 100%; border-collapse: collapse; color: #e0e0e0;">
+            <thead>
+                <tr style="background: rgba(255, 255, 255, 0.1);">
+                    <th style="padding: 0.8rem; text-align: left;">ID</th>
+                    <th style="padding: 0.8rem; text-align: left;">Amount</th>
+                    <th style="padding: 0.8rem; text-align: left;">Date</th>
+                    <th style="padding: 0.8rem; text-align: left;">Status</th>
+                    <th style="padding: 0.8rem; text-align: left;">Merchant</th>
+                </tr>
+            </thead>
+            <tbody id="transaction-history"></tbody>
+        </table>
+    </div>
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        fetch("/api/user/transactions")
+            .then(response => response.json())
+            .then(data => {
+                const tbody = document.getElementById("transaction-history");
+                tbody.innerHTML = "";
+                data.transactions.forEach(tx => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${tx.id}</td>
+                        <td>${tx.amount}</td>
+                        <td>${tx.date}</td>
+                        <td>${tx.state}</td>
+                        <td>${tx.merchant}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            });
+    });
+    </script>
+{% endblock %} 
