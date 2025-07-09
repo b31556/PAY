@@ -13,13 +13,12 @@
         <p>
             <strong>Payment Code:</strong> {{ code|default("N/A") }}<br>
             <strong>Amount:</strong> ${{ amount|default("0.00")|float|round(2) }}<br>
-            <strong>Merchant:</strong> {{ merchant|default("Unknown") }}<br>
             <strong>Created At:</strong> {{ created_at|default("N/A") }}<br>
         </p>
         {% if is_already_logged_in %}
             <button id="pay-now-btn" class="btn" style="animation: bounce 0.3s ease-in-out;" onclick="makePayment('{{ code|default('') }}', '{{ payment_secret|default('') }}')">Pay Now</button>
         {% else %}
-            <a href="/login?redirect=http://100.104.43.55:8080/pay/{{ code }}" class="btn" style="animation: bounce 0.3s ease-in-out;">Log in to Pay</a>
+            <a href="/login?redirect=/pay/{{ code }}" class="btn" style="animation: bounce 0.3s ease-in-out;">Log in to Pay</a>
         {% endif %}
         <a href="/" class="btn" style="margin-left: 1rem; background: #e0e0e0; color: #2c3e50; animation: bounce 0.3s ease-in-out 0.1s;">Back to Dashboard</a>
     </div>
@@ -40,31 +39,32 @@
 
     {% if is_already_logged_in %}
     <script>
-        async function makePayment(code, paymentSecret) {
-            try {
-                const response = await fetch(`/api/pay/${code}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ transaction_secret: paymentSecret })
-                });
-                if (response.ok) {
-                    document.open();
-                    document.write(await response.text());
-                    document.close();
+    async function makePayment(code, paymentSecret) {
+        try {
+            const redirectParam = "{{ '?redirect=' + redirect if redirect else '' }}";
+            const response = await fetch(`/api/pay/${code}${redirectParam}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ transaction_secret: paymentSecret })
+            });
 
-                } else {
-                    data=await response.json()
-                    alert('Payment failed: ' + (data.detail || 'Unknown error'));
-                    window.location.href = `/pay/${code}`;
-                    
-                }
-            } catch (error) {
-                alert('An error occurred: ' + error.message);
+            if (response.ok) {
+                document.open();
+                document.write(await response.text());
+                document.close();
+            } else {
+                const data = await response.json();
+                alert('Payment failed: ' + (data.detail || 'Unknown error'));
                 window.location.href = `/pay/${code}`;
             }
+        } catch (error) {
+            alert('An error occurred: ' + error.message);
+            window.location.href = `/pay/${code}`;
         }
-    </script>
+    }
+</script>
+
     {% endif %}
 {% endblock %}

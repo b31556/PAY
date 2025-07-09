@@ -28,4 +28,12 @@
             50% { transform: translateY(-5px); }
         }
     </style>
+
+    {% if redirect %}
+        <script>
+            setTimeout(() => {
+                window.location.href = "{{ redirect }}";
+            }, 3000); // Redirect after 3 seconds
+        </script>
+    {% endif %}
 {% endblock %}

@@ -12,10 +12,24 @@
         <p>Great news! Your payment is all done!</p>
     </div>
 
+    {% if redirect %}
     <div class="card">
+        <p style="text-align: center; color: #2c3e50; font-size: 1.2rem;">You will be redirected shortly...</p>
+    </div>
+    {% else %}
+    <div class="card">
+        <h3>Payment Details</h3>
+        <p>
+            <strong>Payment Code:</strong> {{ code|default("N/A") }}<br>
+            <strong>Amount:</strong> ${{ amount|default("0.00")|float|round(2) }}<br>
+            <strong>Merchant:</strong> {{ merchant|default("Unknown") }}<br>
+            <strong>Created At:</strong> {{ created_at|default("N/A") }}<br>
+            <strong>Completed At:</strong> {{ completed_at|default("N/A") }}<br>
+        </p>
         <a href="/" class="btn" style="animation: bounce 0.3s ease-in-out;">Back to Dashboard</a>
         <a href="/history" class="btn" style="margin-left: 1rem; background: #e0e0e0; color: #2c3e50; animation: bounce 0.3s ease-in-out 0.1s;">View Transaction History</a>
     </div>
+    {% endif %}
 
     <style>
         /* Fade-in animation for hero */
@@ -30,4 +44,12 @@
             50% { transform: translateY(-5px); }
         }
     </style>
+
+    {% if redirect %}
+        <script>
+            setTimeout(() => {
+                window.location.href = "{{ redirect }}";
+            }, 3000); // Redirect after 3 seconds
+        </script>
+    {% endif %}
 {% endblock %}

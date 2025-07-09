@@ -67,7 +67,7 @@ Base.metadata.create_all(engine)
 @app.get("/generate_qr/{login}")
 def generate_qr_code(login: str):
 
-    login= f"http://100.104.43.55:8080/pay/{login}"
+    login= f"http://100.104.43.55:8081/pay/{login}"
     # QR-kód generálása
     qr = qrcode.make(login)
     # PNG kép beágyazása egy streambe
@@ -86,6 +86,10 @@ def generate_qr_code(login: str):
 async def start_payment(request: fastapi.Request):
     data= await request.json()
     merchant_secret = request.cookies.get("acess_token")
+    if not merchant_secret:
+        merchant_secret = data.get("merchant_secret")
+    if not merchant_secret:
+        raise HTTPException(status_code=401, detail="Merchant secret is required")
     amount = data.get("amount")
 
     
@@ -103,7 +107,7 @@ async def start_payment(request: fastapi.Request):
     code = os.urandom(16).hex()
     secret = os.urandom(64).hex()
     watch_code = os.urandom(16).hex()
-    transaction = Transaction(
+    transaction = Transaction( 
         code=code,
         amount=amount,
         merchant=merchant.login,
@@ -130,6 +134,7 @@ def watch_page(request: fastapi.Request, watch_code: str):
 
 @app.get("/pay/{code}", response_class=HTMLResponse)
 def pay_page(request: fastapi.Request, code: str):
+    redirecto = request.query_params.get("redirect")
     cookies = request.cookies
     acess_token = cookies.get("acess_token")
     logged_in = False
@@ -141,19 +146,31 @@ def pay_page(request: fastapi.Request, code: str):
             logged_in = True
     transaction = session.query(Transaction).filter_by(code=code).first()
     if not transaction:
-        return templates.TemplateResponse("payment_invalid.html", {"request": request, "code": code})
+        return templates.TemplateResponse("payment_invalid.html", {"request": request, "code": code, "redirect": redirecto})
 
     if transaction.state == "completed":
-        return templates.TemplateResponse("payment_already_completed.html", {"request": request, "code": code})
+        return templates.TemplateResponse("payment_already_completed.html", {"request": request, "code": code, "redirect": redirecto})
     
     if transaction.state == "failed":
-        return templates.TemplateResponse("payment_failed.html", {"request": request, "code": code})
+        return templates.TemplateResponse("payment_failed.html", {"request": request, "code": code, "redirect": redirecto})
     
-    return templates.TemplateResponse("payment.html", {"request": request, "code": code, "payment_secret": transaction.transaction_secret, "amount": transaction.amount, "merchant": transaction.merchant, "is_already_logged_in": logged_in is not None, "created_at": transaction.created_at})
+    return templates.TemplateResponse("payment.html", {"request": request, "code": code, "payment_secret": transaction.transaction_secret, "amount": transaction.amount, "is_already_logged_in": logged_in, "created_at": transaction.created_at, "redirect": redirecto})
 
+@app.get("/dev/api")
+async def dev_api(request: fastapi.Request):
+    cookies = request.cookies
+    acess_token = cookies.get("acess_token")
+    if not acess_token:
+        raise HTTPException(status_code=401, detail="Unauthorized, please log in")
+    user = session.query(User).filter_by(acess_token=acess_token).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized, please log in")
+    
+    return f"Your dev api key is: {user.acess_token}. You can use this key to access the API endpoints. Please keep it secret and do not share it with anyone."
 
 @app.post("/api/pay/{code}")
 async def pay(request: fastapi.Request, code: str):
+    redirecto = request.query_params.get("redirect")
     data = await request.json()
     cookies = request.cookies
     acess_token = cookies.get("acess_token")
@@ -205,7 +222,7 @@ async def pay(request: fastapi.Request, code: str):
     transaction.card = user.card
     transaction.completed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     session.commit()
-    return templates.TemplateResponse("payment_completed.html", {"request": request, "code": code, "amount": transaction.amount, "merchant": transaction.merchant, "created_at": transaction.created_at, "completed_at": transaction.completed_at})
+    return templates.TemplateResponse("payment_completed.html", {"request": request, "code": code, "amount": transaction.amount, "merchant": transaction.merchant, "created_at": transaction.created_at, "completed_at": transaction.completed_at, "redirect": redirecto})
 
 @app.get("/login")
 async def login(request: fastapi.Request):
@@ -242,10 +259,10 @@ async def create_transaction(request: fastapi.Request, response: fastapi.Respons
     cookies = request.cookies
     acess_token = cookies.get("acess_token")
     if not acess_token:
-        return templates.TemplateResponse("login.html", {"request": request})
+        return fastapi.responses.RedirectResponse(url="/login?redirect=/portal", status_code=303)
     user = session.query(User).filter_by(acess_token=acess_token).first()
     if not user:
-        return templates.TemplateResponse("login.html", {"request": request})
+        return fastapi.responses.RedirectResponse(url="/login?redirect=/portal", status_code=303)
     return templates.TemplateResponse("portal.html", {"request": request, "user": user, "acess_token": acess_token})
 
 @app.get("/api/transactions")
@@ -310,4 +327,4 @@ import threading
 if __name__ == "__main__":
     # Start FastAPI server in a separate thread
     import uvicorn
-    threading.Thread(target=lambda: uvicorn.run(app, host='0.0.0.0', port=8080)).start()
+    threading.Thread(target=lambda: uvicorn.run(app, host='0.0.0.0', port=8081)).start()

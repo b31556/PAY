@@ -11,6 +11,8 @@ Base = declarative_base()
 Session = sessionmaker(bind=engine)
 session = Session()
 
+card_limit=10 # Set a limit for card payments, -1 means no limit
+
 # User model  b
 class User(Base):
     __tablename__ = 'cards'
@@ -76,7 +78,7 @@ async def pay(merchant: str, amount: int, request: Request):
     if amount <= 0:
         return Response(content="Amount must be positive", status_code=401)
 
-    if amount > 5:
+    if amount > card_limit and card_limit != -1:
         idet = str(random.randint(1000000, 9999999))
         on_goind_payments[idet] = {"merchant": merchant, "amount": amount, "card": card}
         return Response(content=idet, status_code=403)
