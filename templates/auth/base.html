@@ -122,7 +122,7 @@
         <a href="/login?redirect={{ request.path }}" style="color: #fff; text-decoration: none; margin-right: 1rem;">Login</a>
         <a href="/register?redirect={{ request.path }}" style="color: #fff; text-decoration: none;">Register</a>
         {% else %}
-        <a href="/auth/logout" style="color: #fff; text-decoration: none; margin-right: 1rem;">Logout</a>
+        <a href="/logout" style="color: #fff; text-decoration: none; margin-right: 1rem;">Logout</a>
         <span style="color: #fff; margin-left: 1rem;">Welcome, {{ user.username }}</span>
         {% endif %}
     </div>

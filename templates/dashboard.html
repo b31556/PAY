@@ -4,7 +4,7 @@
 
 {% block content %}
     <div class="hero" style="animation: fadeIn 1s ease-in;">
-        <h1>Welcome, {{ user.login|default("User") }}</h1>
+        <h1>Welcome, {{ user.username if user.username else "/failed to load username/" }}</h1>
         <p>Here you can view your card balance and transaction history.</p>
     </div>
     <!-- Navigation handled by base.html nav bar -->
