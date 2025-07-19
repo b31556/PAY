@@ -1,7 +1,7 @@
 
-URL = "http://100.104.43.55:8081"
+URL = "https://bank.jundev.eu"
 
-PORT = URL.split(":")[-1] if ":" in URL else 4464
+PORT = 4464
 
 DATABASE = "sqlite:///db_v2.db"
 

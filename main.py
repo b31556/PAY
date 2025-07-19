@@ -36,13 +36,17 @@ app.include_router(ui.app, prefix="/app", tags=["ui"])
 app.include_router(auth_ui.app, prefix="/auth", tags=["auth_ui"])
 
 
-@app.on_event("startup")
-async def startup_event():
-    print("Starting up...")
 
 @app.get("/favicon.ico")
 def favicon():
     return fastapi.responses.FileResponse("static/favicon.ico")
+
+@app.get("/", response_class=HTMLResponse)
+async def root(request: fastapi.Request):
+    """
+    Render the main page.
+    """
+    return fastapi.responses.RedirectResponse(url="/app/dashboard")
 
 import threading
 

@@ -24,14 +24,8 @@ from typing import Dict
 
 INUSE_KEYS = {} # uuid: str -> private key: str
 
-
 app = fastapi.APIRouter()
 
-with open("keys/private_key.pem", "rb") as key_file:
-    private_key = serialization.load_pem_private_key(
-        key_file.read(),
-        password=None,
-    )
 
 def auth_sessiontoken(token: str, type: str = "session_cookie"):
     """
@@ -125,6 +119,38 @@ def auth_totp(user: User, otp_code: str):
             detail="Invalid TOTP code",
         )
     return user
+
+def verify_signature(sessin_id, data: str, signature: str):
+    public_key_dob = session.query(SigKey).filter_by(session_id=sessin_id).first()
+    if not public_key_dob:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No public key found for user"
+        )
+    
+    signature = base64.b64decode(signature)
+    data_bytes = data.encode()
+
+    #load the public key from the database as a json
+    public_key_jwk = json.loads(public_key_dob.public_key)
+    public_key_numbers = rsa.RSAPublicNumbers(
+        e=int.from_bytes(base64.urlsafe_b64decode(public_key_jwk['e'] + '=='), 'big'),
+        n=int.from_bytes(base64.urlsafe_b64decode(public_key_jwk['n'] + '=='), 'big')
+    )
+    public_key = public_key_numbers.public_key(default_backend())
+
+    try:
+        public_key.verify(
+            signature,
+            data_bytes,
+            padding.PKCS1v15(),
+            hashes.SHA256()
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Signature verification failed"
+        )
 
 
 @app.post("/login")
@@ -255,36 +281,10 @@ async def step2(request: fastapi.Request):
     user = sestoken.user
 
     public_key_dob = session.query(SigKey).filter_by(session_id=sestoken.id).first()
-    if not public_key_dob:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No public key found for user"
-        )
     
-    signature = base64.b64decode(signature)
-    data_bytes = data.encode()
+    verify_signature(sestoken.id, data, signature)
 
-    #load the public key from the database as a json
-    public_key_jwk = json.loads(public_key_dob.public_key)
-    public_key_numbers = rsa.RSAPublicNumbers(
-        e=int.from_bytes(base64.urlsafe_b64decode(public_key_jwk['e'] + '=='), 'big'),
-        n=int.from_bytes(base64.urlsafe_b64decode(public_key_jwk['n'] + '=='), 'big')
-    )
-    public_key = public_key_numbers.public_key(default_backend())
-
-    try:
-        public_key.verify(
-            signature,
-            data_bytes,
-            padding.PKCS1v15(),
-            hashes.SHA256()
-        )
-        totp = json.loads(data).get("password")
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Signature verification failed"
-        )
+    totp = json.loads(data).get("password")
 
     user = auth_totp(user, totp)
     access_token = generate_access_token(user, token_type="session_cookie", timeout_hours=SESSION_TIMEOUT, len=128)
@@ -299,4 +299,5 @@ async def step2(request: fastapi.Request):
     response.set_cookie(key="session_token", value=access_token.token, httponly=True, max_age=SESSION_TIMEOUT/60/60, samesite="Lax")
     response.set_cookie(key="session_step1", value="", httponly=True, max_age=0, samesite="Lax")  # Clear the session_step1 cookie
     return response
+
 

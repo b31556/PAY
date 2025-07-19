@@ -33,7 +33,6 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
     pincode = Column(String, nullable=False)
-    amaunt = Column(Integer, nullable=False, default=0)
 
     cards = relationship("Card", back_populates="user", cascade="all, delete-orphan")
     access_tokens = relationship("AccessToken", back_populates="user", cascade="all, delete-orphan")
@@ -58,6 +57,8 @@ class Card(Base):
     user = relationship("User", back_populates="cards")
     sells = relationship("Transaction", back_populates="merchant_card", foreign_keys='Transaction.merchant_card_id')
     buys = relationship("Transaction", back_populates="consumer_card", foreign_keys='Transaction.consumer_card_id')
+
+# ----
 
 class AccessToken(Base):
     __tablename__ = 'access_tokens'

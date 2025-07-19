@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passkey Authentication Demo</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .container { display: flex; flex-direction: column; gap: 20px; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        button { padding: 10px; cursor: pointer; }
+        #message { margin-top: 20px; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Passkey Authentication Demo</h1>
+        
+        <div id="register-section">
+            <h2>Register</h2>
+            <div class="form-group">
+                <label for="register-username">Username:</label>
+                <input type="text" id="register-username" required>
+            </div>
+            <button id="register-button">Register with Passkey</button>
+        </div>
+        
+        <div id="login-section">
+            <h2>Login</h2>
+            <div class="form-group">
+                <label for="login-username">Username:</label>
+                <input type="text" id="login-username" required>
+            </div>
+            <button id="login-button">Login with Passkey</button>
+        </div>
+        
+        <div id="message" style="display: none;"></div>
+    </div>
+
+    <script>
+        const showMessage = (text, isError = false) => {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            messageEl.className = isError ? 'error' : 'success';
+            messageEl.style.display = 'block';
+        };
+
+        // Register flow
+        document.getElementById('register-button').addEventListener('click', async () => {
+            const username = document.getElementById('register-username').value.trim();
+            if (!username) {
+                showMessage('Username is required', true);
+                return;
+            }
+
+            try {
+                // Step 1: Get registration options from server
+                const startResponse = await fetch('/register/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                
+                if (!startResponse.ok) {
+                    const error = await startResponse.json();
+                    throw new Error(error.error || 'Registration failed');
+                }
+                
+                const options = await startResponse.json();
+                
+                // Step 2: Create credential in browser
+                const credential = await navigator.credentials.create({
+                    publicKey: {
+                        challenge: Uint8Array.from(options.challenge, c => c.charCodeAt(0)),
+                        rp: options.rp,
+                        user: {
+                            id: Uint8Array.from(options.user.id, c => c.charCodeAt(0)),
+                            name: options.user.name,
+                            displayName: options.user.displayName
+                        },
+                        pubKeyCredParams: options.pubKeyCredParams,
+                        authenticatorSelection: options.authenticatorSelection,
+                        timeout: options.timeout,
+                        attestation: options.attestation
+                    }
+                });
+                
+                // Prepare data for server
+                const attestationResponse = {
+                    id: credential.id,
+                    rawId: Array.from(new Uint8Array(credential.rawId)),
+                    type: credential.type,
+                    response: {
+                        attestationObject: Array.from(new Uint8Array(credential.response.attestationObject)),
+                        clientDataJSON: Array.from(new Uint8Array(credential.response.clientDataJSON))
+                    },
+                    challenge: options.challenge
+                };
+                
+                // Step 3: Send credential to server
+                const finishResponse = await fetch('/register/finish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(attestationResponse)
+                });
+                
+                if (!finishResponse.ok) {
+                    const error = await finishResponse.json();
+                    throw new Error(error.error || 'Registration completion failed');
+                }
+                
+                showMessage('Registration successful! You can now log in.');
+            } catch (error) {
+                showMessage(error.message, true);
+                console.error(error);
+            }
+        });
+
+        // Login flow
+        document.getElementById('login-button').addEventListener('click', async () => {
+            const username = document.getElementById('login-username').value.trim();
+            if (!username) {
+                showMessage('Username is required', true);
+                return;
+            }
+
+            try {
+                // Step 1: Get authentication options from server
+                const startResponse = await fetch('/login/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                
+                if (!startResponse.ok) {
+                    const error = await startResponse.json();
+                    throw new Error(error.error || 'Login failed');
+                }
+                
+                const options = await startResponse.json();
+                
+                // Step 2: Get assertion from browser
+                const credential = await navigator.credentials.get({
+                    publicKey: {
+                        challenge: Uint8Array.from(options.challenge, c => c.charCodeAt(0)),
+                        allowCredentials: [{
+                            id: Uint8Array.from(options.allowCredentials[0].id, c => c.charCodeAt(0)),
+                            type: options.allowCredentials[0].type
+                        }],
+                        timeout: options.timeout,
+                        userVerification: options.userVerification
+                    }
+                });
+                
+                // Prepare data for server
+                const assertionResponse = {
+                    id: credential.id,
+                    rawId: Array.from(new Uint8Array(credential.rawId)),
+                    type: credential.type,
+                    response: {
+                        authenticatorData: Array.from(new Uint8Array(credential.response.authenticatorData)),
+                        clientDataJSON: Array.from(new Uint8Array(credential.response.clientDataJSON)),
+                        signature: Array.from(new Uint8Array(credential.response.signature)),
+                        userHandle: credential.response.userHandle ? 
+                            Array.from(new Uint8Array(credential.response.userHandle)) : null
+                    },
+                    challenge: options.challenge
+                };
+                
+                // Step 3: Send assertion to server
+                const finishResponse = await fetch('/login/finish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(assertionResponse)
+                });
+                
+                if (!finishResponse.ok) {
+                    const error = await finishResponse.json();
+                    throw new Error(error.error || 'Login completion failed');
+                }
+                
+                const result = await finishResponse.json();
+                showMessage(`Login successful! Welcome, ${result.username}`);
+            } catch (error) {
+                showMessage(error.message, true);
+                console.error(error);
+            }
+        });
+    </script>
+</body>
+</html>

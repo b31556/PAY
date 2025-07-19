@@ -21,9 +21,6 @@ import auth
 
 app = APIRouter()
 
-with open("keys/public_key.pem", "r") as f:
-    public_key_str = f.read()
-
 templates = Jinja2Templates(directory="templates/auth")
 app.mount("/static", fastapi.staticfiles.StaticFiles(directory="static"), name="static")
 
