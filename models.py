@@ -31,8 +31,8 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, nullable=False)
     email = Column(String, unique=True, nullable=False)
-    password = Column(String, nullable=False)
-    pincode = Column(String, nullable=False)
+    password_v = Column(String, nullable=False)
+    password_s = Column(String, nullable=False)
 
     cards = relationship("Card", back_populates="user", cascade="all, delete-orphan")
     access_tokens = relationship("AccessToken", back_populates="user", cascade="all, delete-orphan")

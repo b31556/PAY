@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SRP Auth Client</title>
+</head>
+<body>
+  <h2>SRP Authentication Demo</h2>
+  <input type="text" id="username" placeholder="Username"><br>
+  <input type="password" id="password" placeholder="Password"><br>
+  <button onclick="register()">Register</button>
+  <button onclick="login()">Login</button>
+
+  <pre id="output"></pre>
+
+  <script>
+    const N_hex = (
+        "CB6CA63D51DED2B0D9BD257FBD1109D31341F8DD6A0D431AEB72AD0DC5579DBBE4990B2377466D0E5E74B68E72CF8E12B" +
+        "1CCEEF836C69CC48E8EFF1934404EE0652D43F635962C2459397722E5273424EBEB7D60011B939C6EB79E43EC1343449A" +
+        "2F4CA550F5F108764470E53B87B3F8B8F7A338153E200AE8B9D252ADF002BBEB9F30FA97CB297A1B412780D291634301D" +
+        "CE712442A79A637792A0B730A0447E9B5F961A4074BE672E9AED66C49E1225FCF242B49491964E6B0FEAEBCF2FF859EAF" +
+        "E80E2FB801F375CD20E9395629DA9ADACFB00DA33930C07ADE24C823FE06C9F668356C0E999761FC3A827D9F1698B6ED7" +
+        "A49572292C2A20E0EFA1A2E946E6F3A420C64FFF6FF6482B9FE6E4AD859899B8A7845C24C76D29BF7D7FE1CB81723B092" +
+        "26D70DF332D85E57EF8A5F18AC5366D43B01D25F6240B83BF820A868AEBFDCE1BA73875083474F9A2AE6DD54475702104" +
+        "3E197B1E238D46DD0536B2A29796DE0478B5ADCD71792F7F82D2BA9EE79643E9136D09E19A65E4144F622215FDBADA3D1" +
+        "C2312295DB3645E6A31146FEBD93FFBE3E7F8F35CD8143910BFB3F86CA282EBE87CF50A494F7E47620B4C6DE655B9145F" +
+        "95DCF518C4399B6E28AA353BD23392F2F6167675261C18041D933EC1098BAD295251F369D1A703F28D10D2023E2930297" +
+        "C5C8ED37729AFAD617EB7B306D8539C5C906B1FA8A2152A9B85383"
+    );
+
+    const N = BigInt('0x' + N_hex);
+    const g = 2n;
+    const k = 3n;
+
+
+    async function sha256(data) {
+      if (!(data instanceof Uint8Array)) {
+        throw new Error("sha256 expects Uint8Array");
+      }
+      const buffer = await window.crypto.subtle.digest("SHA-256", data);
+      return new Uint8Array(buffer);
+    }
+
+    function textToBytes(text) {
+      return new TextEncoder().encode(text);
+    }
+
+    function hexToBytes(hex) {
+      return new Uint8Array(hex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+    }
+
+    function bytesToHex(bytes) {
+      return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function bigIntToBytes(num) {
+      let hex = num.toString(16);
+      if (hex.length % 2) hex = '0' + hex;
+      return hexToBytes(hex);
+    }
+
+    function modPow(base, exp, mod) {
+      let result = 1n;
+      base = base % mod;
+      while (exp > 0) {
+        if (exp % 2n === 1n) result = (result * base) % mod;
+        exp = exp >> 1n;
+        base = (base * base) % mod;
+      }
+      return result;
+    }
+
+    function xorBuffers(buf1, buf2) {
+      return new Uint8Array(buf1.map((b, i) => b ^ buf2[i]));
+    }
+
+    async function register() {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+
+      const res = await fetch("/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      const result = await res.json();
+      document.getElementById("output").textContent = JSON.stringify(result, null, 2);
+    }
+
+    async function login() {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+
+      const aBytes = crypto.getRandomValues(new Uint8Array(32));
+      const aHex = Array.from(aBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+      const a = BigInt("0x" + aHex);
+      const A = modPow(g, a, N);
+
+      const startRes = await fetch("/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username })
+      });
+      const { salt, B, session_id } = await startRes.json();
+      const saltBytes = hexToBytes(salt);
+
+      const userPassHash = await sha256(textToBytes(`${username}:${password}`));
+      const concat = new Uint8Array([...saltBytes, ...userPassHash]);
+      const xH = await sha256(concat);
+      const x = BigInt("0x" + bytesToHex(xH));
+
+      const Bint = BigInt(B);
+      const uH = await sha256(new Uint8Array([...bigIntToBytes(A), ...bigIntToBytes(Bint)]));
+      const u = BigInt("0x" + bytesToHex(uH));
+
+      const S = modPow((Bint - k * modPow(g, x, N) + N) % N, a + u * x, N);
+      const K = await sha256(bigIntToBytes(S));
+
+      const H_N = await sha256(bigIntToBytes(N));
+      const H_g = await sha256(bigIntToBytes(g));
+      const H_xor = xorBuffers(H_N, H_g);
+      const H_user = await sha256(textToBytes(username));
+
+      const M1_input = new Uint8Array([
+        ...H_xor,
+        ...H_user,
+        ...saltBytes,
+        ...bigIntToBytes(A),
+        ...bigIntToBytes(Bint),
+        ...K
+      ]);
+      const M1 = await sha256(M1_input);
+
+      const verifyRes = await fetch("/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id,
+          A: "0x" + A.toString(16),
+          M1: bytesToHex(M1)
+        })
+      });
+
+      const result = await verifyRes.json();
+      document.getElementById("output").textContent = bytesToHex(K);
+    }
+  </script>
+</body>
+</html>
