@@ -152,6 +152,34 @@ def verify_signature(sessin_id, data: str, signature: str):
             detail="Signature verification failed"
         )
 
+@app.options("/init")
+async def init(request: fastapi.Request):
+    try:
+        auth_sessiontoken(request.cookies.get("session_token"))
+        return fastapi.responses.RedirectResponse(url="/app/dashboard")
+    except Exception:
+        pass
+    try:
+        auth_sessiontoken(request.cookies.get("session_step1"), type="session_step1")
+        return fastapi.responses.RedirectResponse(url="/auth/step2")
+    except Exception:
+        pass
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+    public_key_str = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    ).decode('utf-8')
+    uuid = str(os.urandom(16).hex())
+    INUSE_KEYS[uuid] = private_key
+    return fastapi.responses.JSONResponse(
+        content={
+            "public_key": public_key_str,
+            "uuid": uuid,
+            "message": "Please complete the login process"
+        },
+        status_code=status.HTTP_200_OK
+    )
 
 @app.post("/login")
 async def login(request: fastapi.Request):
