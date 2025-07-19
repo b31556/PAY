@@ -31,13 +31,7 @@ INUSE_KEYS = {} # uuid: str -> private key: str
 app = fastapi.APIRouter()
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:8080", "https://preview--aura-money-dashboard.lovable.app/"],  # 👈 must match Vite dev server
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 
 def auth_sessiontoken(token: str, type: str = "session_cookie"):
     """

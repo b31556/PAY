@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.encoders import jsonable_encoder
 from typing import Dict
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import WebSocketDisconnect
 
 
@@ -35,7 +36,13 @@ app.include_router(core.app, prefix="/api/core", tags=["core"])
 app.include_router(ui.app, prefix="/app", tags=["ui"])
 app.include_router(auth_ui.app, prefix="/auth", tags=["auth_ui"])
 
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8080", "https://preview--aura-money-dashboard.lovable.app/"],  # 👈 must match Vite dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/favicon.ico")
 def favicon():
