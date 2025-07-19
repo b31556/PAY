@@ -32,7 +32,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080", "https://preview--aura-money-dashboard.lovable.app/"],
+    allow_origins=["http://localhost:8080", "https://preview--aura-money-dashboard.lovable.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,15 +57,7 @@ async def root(request: fastapi.Request):
     """
     return fastapi.responses.RedirectResponse(url="/app/dashboard")
 
-import threading
-
 if __name__ == "__main__":
-    # Start FastAPI server in a separate thread
     import uvicorn
-    threading.Thread(target=lambda: uvicorn.run(app, host='0.0.0.0', port=int(PORT))).start()
-    print(f"Server running at {URL} on port {PORT}")
-
-    # Keep the main thread alive
-    while True:
-        pass
+    uvicorn.run(app, host='0.0.0.0', port=int(PORT))
 
