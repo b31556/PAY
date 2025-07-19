@@ -152,7 +152,7 @@ def verify_signature(sessin_id, data: str, signature: str):
             detail="Signature verification failed"
         )
 
-@app.options("/init")
+@app.get("/init")
 async def init(request: fastapi.Request):
     try:
         auth_sessiontoken(request.cookies.get("session_token"))
