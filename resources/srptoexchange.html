@@ -1,0 +1,162 @@
+<!-- client.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Secure Tunnel Exchange</title>
+</head>
+<body>
+  <h2>Secure Key Exchange</h2>
+  <button id="init">Exchange Keys & Send Message</button>
+  <pre id="log"></pre>
+  <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl.min.js"></script>
+
+  <script type="module">
+
+    const log = msg => document.getElementById("log").textContent += msg + "\n";
+
+    document.getElementById("init").onclick = async () => {
+      // 1. HKDF tunnel kulcs előállítása
+      const encoder = new TextEncoder();
+      const K = encoder.encode("my_super_secret_srp_shared_secret");
+      const salt = encoder.encode("srp_salt_example_1234");
+      const info = encoder.encode("srp secure tunnel key derivation");
+
+      const keyMaterial = await window.crypto.subtle.importKey("raw", K, "HKDF", false, ["deriveKey"]);
+      const tunnelKey = await window.crypto.subtle.deriveKey({
+        name: "HKDF",
+        hash: "SHA-256",
+        salt: salt,
+        info: info
+      }, keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+
+      // 2. Szerver publikus kulcsok lekérése (titkosított JSON payload)
+      const res = await fetch("http://localhost:5000/server-pubkeys");
+      const { nonce, encrypted } = await res.json();
+      const nonceBytes = hexToBytes(nonce);
+      const encryptedBytes = hexToBytes(encrypted);
+      const decrypted = await window.crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: nonceBytes },
+        tunnelKey,
+        encryptedBytes
+      );
+      const payload = JSON.parse(new TextDecoder().decode(decrypted));
+      const serverEncPubKeyBytes = hexToBytes(payload.enc_pubkey);
+      const serverSignPubKeyBytes = hexToBytes(payload.sign_pubkey);
+      // timestamp ellenőrzés opcionális
+
+      log("✔ Szerver publikus kulcsai megérkeztek");
+
+      // 3. Kliens kulcspárok generálása
+      const clientBoxKeyPair = nacl.box.keyPair();
+      const clientSignKeyPair = nacl.sign.keyPair();
+      const clientPrivateKey = clientBoxKeyPair.secretKey;
+      const clientPublicKey = clientBoxKeyPair.publicKey;
+      const clientSignPrivateKey = clientSignKeyPair.secretKey;
+      const clientSignPublicKey = clientSignKeyPair.publicKey;
+
+      // 4. Kliens publikus kulcsok titkosított JSON payloadban elküldése
+      const clientPayload = {
+        enc_pubkey: bytesToHex(clientPublicKey),
+        sign_pubkey: bytesToHex(clientSignPublicKey),
+        timestamp: Math.floor(Date.now() / 1000)
+      };
+      const clientPayloadBytes = encoder.encode(JSON.stringify(clientPayload));
+      const nonceClient = window.crypto.getRandomValues(new Uint8Array(12));
+      const encryptedClient = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: nonceClient },
+        tunnelKey,
+        clientPayloadBytes
+      );
+      await fetch("http://localhost:5000/client-pubkeys", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          nonce: bytesToHex(nonceClient),
+          encrypted: bytesToHex(new Uint8Array(encryptedClient))
+        })
+      });
+
+      log("✔ Kliens publikus kulcsok elküldve");
+
+      // 5. Üzenet titkosítása NaCl Box-szal és aláírása
+      const message = encoder.encode("Hello from client!");
+      const nonceBox = nacl.randomBytes(24);
+      const encryptedMessage = nacl.box(
+        message,
+        nonceBox,
+        serverEncPubKeyBytes,
+        clientPrivateKey
+      );
+      // Aláírás (titkosítatlan üzenet!)
+      const signature = nacl.sign.detached(message, clientSignPrivateKey);
+
+      // 6. Titkosított üzenet és szignatúra elküldése
+      await fetch("http://localhost:5000/message", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          encrypted: bytesToHex(new Uint8Array([...nonceBox, ...encryptedMessage])),
+          signature: bytesToHex(signature)
+        })
+      }).then(async resp => {
+        const data = await resp.json();
+        if (data.encrypted_response && data.signature) {
+          // Válasz dekódolása
+          const encryptedResp = hexToBytes(data.encrypted_response);
+          const respNonce = encryptedResp.slice(0, 24);
+          const respCipher = encryptedResp.slice(24);
+          const decrypted = nacl.box.open(
+            respCipher,
+            respNonce,
+            serverEncPubKeyBytes,
+            clientPrivateKey
+          );
+          if (decrypted) {
+            // Ellenőrizzük a szerver szignatúráját
+            const serverValid = nacl.sign.detached.verify(
+              decrypted,
+              hexToBytes(data.signature),
+              serverSignPubKeyBytes
+            );
+            if (serverValid) {
+              log("✔ Szerver válasza (hitelesítve): " + new TextDecoder().decode(decrypted));
+            } else {
+              log("❌ Szerver válasza: szignatúra érvénytelen!");
+            }
+          } else {
+            log("❌ Nem sikerült visszafejteni a szerver válaszát!");
+          }
+        } else if (data.error) {
+          log("❌ Hiba: " + data.error);
+        }
+      });
+    };
+
+    function hexToBytes(hex) {
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+      }
+      return bytes;
+    }
+
+    function bytesToHex(bytes) {
+      return [...bytes].map(x => x.toString(16).padStart(2, "0")).join("");
+    }
+
+    async function encrypt(key, data) {
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const ct = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
+      return new Uint8Array([...iv, ...new Uint8Array(ct)]);
+    }
+
+    async function decrypt(key, encrypted) {
+      const iv = encrypted.slice(0, 12);
+      const ct = encrypted.slice(12);
+      const pt = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+      return new Uint8Array(pt);
+    }
+  </script>
+</body>
+</html>

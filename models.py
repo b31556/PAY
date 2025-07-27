@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Text
 from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import BigInteger
 
 Base = declarative_base()
 
@@ -31,9 +32,9 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, nullable=False)
     email = Column(String, unique=True, nullable=False)
-    password_v = Column(String, nullable=False)
-    password_s = Column(String, nullable=False)
 
+    sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
+    user_srps = relationship("UserSrp", back_populates="user", cascade="all, delete-orphan")
     cards = relationship("Card", back_populates="user", cascade="all, delete-orphan")
     access_tokens = relationship("AccessToken", back_populates="user", cascade="all, delete-orphan")
     sells = relationship("Transaction", back_populates="merchant", foreign_keys='Transaction.merchant_id', cascade="all, delete-orphan")
@@ -79,6 +80,41 @@ class OtpSecret(Base):
     secret = Column(String, unique=True, nullable=False)
 
     user = relationship("User", back_populates="otp_secrets")
+
+class Session(Base):
+    __tablename__ = 'sessions'
+    id = Column(Integer, primary_key=True)
+    session_id = Column(String, unique=True, nullable=False)
+    b = Column(Text, nullable=False)
+    B_capital = Column(Text, nullable=False)
+    username = Column(Text, nullable=False)
+    created_at = Column(Text, nullable=False)
+    expires_at = Column(Text, nullable=False)
+    updated_at = Column(Text, nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    state = Column(Text, nullable=False, default="created")
+    K = Column(Text, nullable=True)
+    tunnel_key = Column(Text, nullable=True)
+    server_enc_private = Column(Text, nullable=True)
+    server_enc_public = Column(Text, nullable=True)
+    server_sign_private = Column(Text, nullable=True)
+    server_sign_public = Column(Text, nullable=True)
+    client_enc_public = Column(Text, nullable=True)
+    client_sign_public = Column(Text, nullable=True)
+
+    user = relationship("User", back_populates="sessions")
+
+    def __repr__(self):
+        return f"<Session(session_id='{self.session_id}', username='{self.username}')>"
+
+class UserSrp(Base):
+    __tablename__ = 'user_srps'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    salt = Column(String, nullable=False)
+    v = Column(String, nullable=False)
+
+    user = relationship("User", back_populates="user_srps")
 
 class SigKey(Base):
     __tablename__ = 'sig_keys'

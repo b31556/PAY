@@ -1,5 +1,5 @@
 from models import Transaction, User
-from database import session
+from database import db_session
 from sqlalchemy import func
 import os
 from fastapi import APIRouter
@@ -14,17 +14,17 @@ app = APIRouter()
 
 
 def recalculate_balance(user_id: int):
-    total = session.query(func.sum(Transaction.amount)).filter_by(user_id=user_id).scalar() or 0.0
-    last_id = session.query(func.max(Transaction.id)).filter_by(user_id=user_id).scalar() or 0
+    total = db_session.query(func.sum(Transaction.amount)).filter_by(user_id=user_id).scalar() or 0.0
+    last_id = db_session.query(func.max(Transaction.id)).filter_by(user_id=user_id).scalar() or 0
 
-    user_balance = session.query(UserBalance).filter_by(user_id=user_id).first()
+    user_balance = db_session.query(UserBalance).filter_by(user_id=user_id).first()
     if not user_balance:
         user_balance = UserBalance(user_id=user_id)
-        session.add(user_balance)
+        db_session.add(user_balance)
 
     user_balance.balance = total
     user_balance.last_transaction_id = last_id
-    session.commit()
+    db_session.commit()
 
 
 
@@ -41,7 +41,7 @@ def make_transaction(amount: float, merchant: User):
         transaction_secret=secret,
         transaction_code=transaction_code
     )
-    session.add(transaction)
-    session.commit()
+    db_session.add(transaction)
+    db_session.commit()
     return transaction
     
