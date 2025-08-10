@@ -12,6 +12,12 @@ from fastapi.responses import RedirectResponse
 from fastapi.encoders import jsonable_encoder
 import auth
 
+from database import db_session
+from models import User, Transaction, Card, AccessToken, OtpSecret, Session
+from config import URL, PORT, DATABASE, SESSION_TIMEOUT, STEP1_TIMEOUT
+
+from encrpt import process_response, process_request, RequestContext
+
 app = APIRouter()
 
 templates = Jinja2Templates(directory="templates")
@@ -24,21 +30,121 @@ async def index():
     """
     return templates.TemplateResponse("index.html", {"request": {}})
 
-def get_valid_user_from_cookie(request: Request):
-    session_token = request.cookies.get("session_token")
-    
-    user=auth.valid_sessiontoken(session_token)
-    if not session_token or not user:
-        raise HTTPException(
-            status_code=302,
-            headers={"Location": "/auth/login"}
-        )
-    
-    return user
 
-@app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, user=Depends(get_valid_user_from_cookie)):
+@app.post("/dashboard")
+async def dashboard(ctx: RequestContext = Depends(process_request), request: Request = fastapi.Request):
     """
     Render the dashboard page.
     """
-    return templates.TemplateResponse("dashboard.html", {"request": request, "user": user})
+    ctx
+
+    html_content = templates.get_template("dashboard.html").render(request=request)
+    
+    with open("templates/styles.css", "r") as f:
+        css_content = f.read()
+
+    with open("templates/dashboard.js", "r") as f:
+        js_content = f.read()
+
+    with open("templates/banking-api.js", "r") as f:
+        banking_api_content = f.read()
+
+    return process_response(
+        {
+            "html": html_content,
+            "style": css_content,
+            "scripts": [banking_api_content, js_content],
+            "title": "Dashboard",
+            "code": 200
+        },
+        ctx
+    )
+    
+
+@app.post("/accounts")
+async def accounts(ctx: RequestContext = Depends(process_request), request: Request = fastapi.Request):
+    """
+    Render the accounts page.
+    """
+    ctx
+
+    html_content = templates.get_template("accounts.html").render(request=request)
+
+    with open("templates/styles.css", "r") as f:
+        css_content = f.read()
+
+    with open("templates/accounts.js", "r") as f:
+        js_content = f.read()
+
+    with open("templates/banking-api.js", "r") as f:
+        banking_api_content = f.read()
+
+    return process_response(
+        {
+            "html": html_content,
+            "style": css_content,
+            "scripts": [banking_api_content, js_content],
+            "title": "Accounts",
+            "code": 200
+        },
+        ctx
+    )
+
+@app.post("/transactions")
+async def transactions(ctx: RequestContext = Depends(process_request), request: Request = fastapi.Request):
+    """
+    Render the transactions page.
+    """
+    ctx
+
+    html_content = templates.get_template("transactions.html").render(request=request)
+
+    with open("templates/styles.css", "r") as f:
+        css_content = f.read()
+
+    with open("templates/transactions.js", "r") as f:
+        js_content = f.read()
+
+    with open("templates/banking-api.js", "r") as f:
+        banking_api_content = f.read()
+
+    return process_response(
+        {
+            "html": html_content,
+            "style": css_content,
+            "scripts": [banking_api_content, js_content],
+            "title": "Transactions",
+            "code": 200
+        },
+        ctx
+    )
+
+
+@app.post("/transfer")
+async def transfer(ctx: RequestContext = Depends(process_request), request: Request = fastapi.Request):
+    """
+    Render the transfer page.
+    """
+    ctx
+
+    html_content = templates.get_template("transfer.html").render(request=request)
+
+    with open("templates/styles.css", "r", encoding="utf-8") as f:
+        css_content = f.read()
+
+    with open("templates/transfer.js", "r", encoding="utf-8") as f:
+        js_content = f.read()
+
+    with open("templates/banking-api.js", "r", encoding="utf-8") as f:
+        banking_api_content = f.read()
+
+    return process_response(
+        {
+            "html": html_content,
+            "style": css_content,
+            "scripts": [banking_api_content, js_content],
+            "title": "Transfer",
+            "code": 200
+        },
+        ctx
+    )

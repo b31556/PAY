@@ -40,34 +40,9 @@ async def login_page(request: Request):
 
 
 
-@app.get("/step2", response_class=HTMLResponse)
-async def step2_page(request: Request):
-    """ Render the second step of the login process.
-    """
-    user= auth.valid_sessiontoken(request.cookies.get("session_token"))
-    if user:
-        return fastapi.responses.RedirectResponse(url="/app/dashboard")
-    user= auth.valid_sessiontoken(request.cookies.get("session_step1"), type="session_step1")
-    if user:
-        return templates.TemplateResponse("step2.html", {"request": request, "user": user})
-    else:
-        return fastapi.responses.RedirectResponse(url="/auth/login", status_code=302)
+@app.get("/login/ve", response_class=HTMLResponse)
+async def login_page(request: Request):
+    
+    return templates.TemplateResponse("loginhack.html", {"request": request})
 
 
-@app.get("/logout", response_class=HTMLResponse)
-async def logout(request: Request):
-    """ Log out the user and redirect to the login page.
-    """
-    sestoken = request.cookies.get("session_token")
-    if not sestoken:
-        return fastapi.responses.RedirectResponse(url="/auth/login", status_code=302)
-    ses = auth.valid_sessiontoken(sestoken)
-    if not ses:
-        return fastapi.responses.RedirectResponse(url="/auth/login", status_code=302)
-    auth.delete_sessiontoken(sestoken)
-    response = RedirectResponse(url="/auth/login", status_code=302)
-    response.delete_cookie("session_token")
-    response.delete_cookie("session_step1")
-    return response
-    
-    

@@ -1,54 +1,70 @@
-{% extends "base.html" %}
 
-{% block title %}My Dashboard{% endblock %}
+    <div class="layout">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-brand">
+                <span>🏦</span>
+                <span>SecureBank</span>
+            </div>
+            <ul class="sidebar-nav">
+                <li><a onclick="Redirect('/dashboard')" class="active">📊 Dashboard</a></li>
+                <li><a onclick="Redirect('/accounts')">💳 Accounts</a></li>
+                <li><a onclick="Redirect('/transactions')">📋 Transactions</a></li>
+                <li><a onclick="Redirect('/transfer')">💸 Transfer</a></li>
+                <li><a onclick="Redirect('/bills')">📄 Pay Bills</a></li>
+                <li><a onclick="Redirect('/profile')">👤 Profile</a></li>
+                <li><a onclick="Redirect('/settings')">⚙️ Settings</a></li>
+                <li><a href="#" onclick="logout()">🚪 Logout</a></li>
+            </ul>
+        </nav>
 
-{% block content %}
-    <div class="hero" style="animation: fadeIn 1s ease-in;">
-        <h1>Welcome, {{ user.username if user.username else "/failed to load username/" }}</h1>
-        <p>Here you can view your card balance and transaction history.</p>
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="space-y-6">
+                <!-- Header -->
+                <div>
+                    <h1 class="text-3xl font-bold">Welcome back, <span id="userName">Loading...</span>!</h1>
+                    <p class="text-muted mt-2">Here's your account overview</p>
+                </div>
+
+                <!-- Account Summary -->
+                <div class="grid grid-cols-3" id="accountSummary">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Quick Actions</h2>
+                    </div>
+                    <div class="card-content">
+                        <div class="grid grid-cols-4">
+                            <a onclick="Redirect('/transfer')" class="btn btn-outline">💸 Transfer Money</a>
+                            <a onclick="Redirect('/bills')" class="btn btn-outline">📄 Pay Bills</a>
+                            <a onclick="Redirect('/accounts')" class="btn btn-outline">💳 Manage Accounts</a>
+                            <a onclick="Redirect('/transactions')" class="btn btn-outline">📋 View History</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Transactions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Recent Transactions</h2>
+                        <p class="card-description">Your latest account activity</p>
+                    </div>
+                    <div class="card-content">
+                        <div id="recentTransactions">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                        <div class="mt-4">
+                            <a onclick="Redirect('/transactions')" class="btn btn-secondary">View All Transactions</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
-    <!-- Navigation handled by base.html nav bar -->
 
-    <div class="card" style="animation: fadeIn 1s ease-in;">
-        <h3>Card Balance</h3>
-        <p style="font-size: 2rem; color: #4caf50;">${{ user.amaunt }}</p>
-    </div>
-
-    <div class="card" style="animation: fadeIn 1s ease-in;">
-        <h3>Transaction History</h3>
-        <table style="width: 100%; border-collapse: collapse; color: #e0e0e0;">
-            <thead>
-                <tr style="background: rgba(255, 255, 255, 0.1);">
-                    <th style="padding: 0.8rem; text-align: left;">ID</th>
-                    <th style="padding: 0.8rem; text-align: left;">Amount</th>
-                    <th style="padding: 0.8rem; text-align: left;">Date</th>
-                    <th style="padding: 0.8rem; text-align: left;">Status</th>
-                    <th style="padding: 0.8rem; text-align: left;">Merchant</th>
-                </tr>
-            </thead>
-            <tbody id="transaction-history"></tbody>
-        </table>
-    </div>
-
-    <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        fetch("/api/user/transactions")
-            .then(response => response.json())
-            .then(data => {
-                const tbody = document.getElementById("transaction-history");
-                tbody.innerHTML = "";
-                data.transactions.forEach(tx => {
-                    const tr = document.createElement("tr");
-                    tr.innerHTML = `
-                        <td>${tx.id}</td>
-                        <td>${tx.amount}</td>
-                        <td>${tx.date}</td>
-                        <td>${tx.state}</td>
-                        <td>${tx.merchant}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            });
-    });
-    </script>
-{% endblock %} 
+    
+       

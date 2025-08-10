@@ -148,22 +148,22 @@ class RequestContext:
     client_sign_public: VerifyKey
 
 
-async def process_request(request: Request) -> Dict:
+async def process_request(request: Request) -> RequestContext:
     data = await request.json()
     encrypted = bytes.fromhex(data["encrypted"])
     signature = bytes.fromhex(data["signature"])
     session_id = data.get("session_id")
 
     if not session_id:
-        return fastapi.responses.JSONResponse(
-            content={"error": "Missing session_id"},
-            status_code=400
+        raise HTTPException(
+            status_code=400,
+            detail="Missing session_id"
         )
     session = db_session.query(Session).filter_by(session_id=session_id).first()
     if not session:
-        return fastapi.responses.JSONResponse(
-            content={"error": "Invalid session"},
-            status_code=400
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid session"
         )
     
     # load base64 encoded keys from session
@@ -180,45 +180,50 @@ async def process_request(request: Request) -> Dict:
 
     try:
         decrypted = decrypt_with_box(encrypted, server_enc_private, client_enc_public)
-    except Exception as e:
-        return fastapi.responses.JSONResponse(
-            content={"error": f"Failed to decrypt message"},
-            status_code=400
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Failed to decrypt message"
         )
 
-    # Ellenőrizzük a szignatúrát
+    # Verify the signature
     try:
         client_sign_public.verify(decrypted, signature)
-    except Exception as e:
-        return fastapi.responses.JSONResponse(
-            content={"error": f"Invalid signature"},
-            status_code=400
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid signature"
         )
     
     try:
         payload = json.loads(decrypted.decode())
         real_session_id = payload.get("session_id")
         if not real_session_id or real_session_id != session_id:
-            return fastapi.responses.JSONResponse(
-                content={"error": "Session ID manipulation detected"},
-                status_code=400
+            raise HTTPException(
+                status_code=400,
+                detail="Session ID manipulation detected"
             )
         data = payload.get("data")
-        if not data:
-            return fastapi.responses.JSONResponse(
-                content={"error": "Missing data in payload"},
-                status_code=400
+        if not isinstance(data, dict) and not isinstance(data, str):
+            raise HTTPException(
+                status_code=400,
+                detail="Missing data in payload"
             )
         url = payload.get("url")
         if not url:
-            return fastapi.responses.JSONResponse(
-                content={"error": "Missing URL in payload"},
-                status_code=400
+            raise HTTPException(
+                status_code=400,
+                detail="Missing URL in payload"
+            )
+        if url != request.url.path:
+            raise HTTPException(
+                status_code=400,
+                detail="URL manipulation detected"
             )
     except json.JSONDecodeError:
-        return fastapi.responses.JSONResponse(
-            content={"error": "Invalid payload"},
-            status_code=400
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid payload"
         )
 
     return RequestContext(

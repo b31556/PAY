@@ -1,31 +1,111 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en"></html>
+<head>  
+  <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style id="dynamic-style">
+        /* Global Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-{% block title %}Log In{% endblock %}
+        body {
+            font-family: 'Poppins', sans-serif;
+            line-height: 1.6;
+            color: #ffffff;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            min-height: 100vh;
+        }
 
-{% block content %}
-    <div class="hero" style="animation: fadeIn 1s ease-in;">
-        <h1>Log In to Your Account</h1>
-        <p>Access your payment portal by signing in below.</p>
-    </div>
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
 
-    <div class="card">
-        <h3>Sign In</h3>
-        <p>
-            <label for="login">Username or Email:</label><br>
-            <input type="text" id="username" placeholder="Enter your username or email" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
-            <label for="password">Password:</label><br>
-            <input type="password" id="password" placeholder="Enter your password" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
-        </p>
-        <button id="login-btn" class="btn" style="animation: bounce 0.3s ease-in-out;" onclick="login()">Log In</button>
-    </div>
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 3rem 1rem;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
 
-    <div class="loading-overlay" style="display: none;">
-        <div class="spinner"></div>
-    </div>
+        .hero h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #fff;
+        }
 
-    <pre id="log" style="background: rgba(0, 0, 0, 0.1); padding: 1rem; border-radius: 5px; color: #fff;"></pre>
+        .hero p {
+            font-size: 1.2rem;
+            color: #e0e0e0;
+        }
 
-    <style>
+        /* Cards */
+        .card {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+
+        .card p {
+            color: #e0e0e0;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            padding: 0.8rem 1.5rem;
+            background: #ffd700;
+            color: #2c3e50;
+            text-decoration: none;
+            font-weight: 600;
+            border-radius: 5px;
+            transition: background 0.3s ease, transform 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #ffca28;
+            transform: scale(1.05);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .container {
+                padding: 0 1rem;
+            }
+        }
+
         .loading-overlay {
             position: fixed;
             top: 0;
@@ -68,6 +148,49 @@
             background: rgba(255, 255, 255, 0.4);
         }
     </style>
+</head>
+<body>
+  <main style="margin-top: 2rem;">
+
+    <div id="main" class="hero" style="animation: fadeIn 1s ease-in;">
+        <h1>Log In to Your Account</h1>
+        <p>Access your payment portal by signing in below.</p>
+    </div>
+    <div id="step2" class="hero" style="animation: fadeIn 1s ease-in; display: none;">
+        <h1 id="welcome-message">Welcome </h1>
+        <p>Please complete the security step</p>
+    </div>
+
+    <div id="main-a" class="card">
+        <h3>Sign In</h3>
+        <p>
+            <label for="login">Username or Email:</label><br>
+            <input type="text" id="username" placeholder="Enter your username or email" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
+            <label for="password">Password:</label><br>
+            <input type="password" id="password" placeholder="Enter your password" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
+        </p>
+        <button id="login-btn" class="btn" style="animation: bounce 0.3s ease-in-out;" onclick="login()">Log In</button>
+    </div>
+    <div id="step2-a" class="card" style="display: none;">
+        <h3>Sign In</h3>
+        <p>
+            
+            <label for="password">TOTP:</label><br>
+            <input type="password" id="password-step2" placeholder="6 digit auth code" style="width: 100%; padding: 0.8rem; margin-bottom: 1rem; border: none; border-radius: 5px; background: rgba(255, 255, 255, 0.3); color: #fff;" required><br>
+        </p>
+        <button id="login-btn-step2" class="btn" style="animation: bounce 0.3s ease-in-out;" onclick="step2login()">Log In</button>
+    </div>
+
+    <div class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+        <p id="loading-message" style="color: #fff;"></p>
+    </div>
+
+    <pre id="log" style="background: rgba(0, 0, 0, 0.1); padding: 1rem; border-radius: 5px; color: #fff;"></pre>
+  </main>
+
+
 
     <!-- Load JSEncrypt -->
     
@@ -182,6 +305,11 @@ const k = 3n;
 
 
     async function login() {
+
+      //display loading overlay
+      document.querySelector('.loading-overlay').style.display = 'flex';
+      document.getElementById('loading-message').textContent = 'Starting login process...';
+
       const username = document.getElementById("username").value;
       const password = document.getElementById("password").value;
 
@@ -225,6 +353,8 @@ const k = 3n;
       ]);
       const M1 = await sha256(M1_input); 
 
+      document.getElementById('loading-message').textContent = 'Doing secure password exchange...';
+
       const verifyRes = await fetch("/auth/api/login-verify", {
         method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -234,6 +364,12 @@ const k = 3n;
       M1: bytesToHex(M1)
     })
   });
+
+  if (verifyRes.status !== 200) {
+    alert("Login failed.");
+    window.location.reload();
+    return;
+  }
 
   const { M2: M2_hex } = await verifyRes.json(); // ADD
   const M2_server = hexToBytes(M2_hex);          // ADD
@@ -246,6 +382,8 @@ const k = 3n;
   const M2_expected = await sha256(M2_input);    // ADD
 
   const isVerified = bytesToHex(M2_expected) === bytesToHex(M2_server); // ADD
+
+  document.querySelector('.loading-overlay').style.display = 'none';
 
   if (isVerified) {
     alert("Login successful!");
@@ -281,12 +419,12 @@ const k = 3n;
       log("✔ Szerver publikus kulcsai megérkeztek");
 
       // 3. Kliens kulcspárok generálása
-      const clientBoxKeyPair = nacl.box.keyPair();
-      const clientSignKeyPair = nacl.sign.keyPair();
-      const clientPrivateKey = clientBoxKeyPair.secretKey;
-      const clientPublicKey = clientBoxKeyPair.publicKey;
-      const clientSignPrivateKey = clientSignKeyPair.secretKey;
-      const clientSignPublicKey = clientSignKeyPair.publicKey;
+      window.clientBoxKeyPair = nacl.box.keyPair();
+      window.clientSignKeyPair = nacl.sign.keyPair();
+      window.clientPrivateKey = window.clientBoxKeyPair.secretKey;
+      window.clientPublicKey = window.clientBoxKeyPair.publicKey;
+      window.clientSignPrivateKey = window.clientSignKeyPair.secretKey;
+      window.clientSignPublicKey = window.clientSignKeyPair.publicKey;
 
       // 4. Kliens publikus kulcsok titkosított JSON payloadban elküldése
       const clientPayload = {
@@ -324,8 +462,12 @@ const k = 3n;
         encryptedBytes
       );
       const payload = JSON.parse(new TextDecoder().decode(decrypted));
-      const serverEncPubKeyBytes = hexToBytes(payload.enc_pubkey);
+      window.user = payload.username || "";
+      log("✔ Szerver válasza megérkezett: " + user);
+      window.serverEncPubKeyBytes = hexToBytes(payload.enc_pubkey);
       const serverSignPubKeyBytes = hexToBytes(payload.sign_pubkey);
+      window.serverSignPubKeyBytes = hexToBytes(payload.sign_pubkey);
+      const serverEncPubKeyBytes = hexToBytes(payload.enc_pubkey);
 
 
 
@@ -384,10 +526,190 @@ const k = 3n;
         }
       });
 
+      // step2 totp code first replace the html code
+
+      document.getElementById("step2-a").style.display = "block";
+      document.getElementById("main-a").style.display = "none";
+      document.getElementById("step2").style.display = "block";
+      document.getElementById("main").style.display = "none";
+      document.getElementById("welcome-message").textContent = "Welcome, " + user + "!";
+
+      document.querySelector('.loading-overlay').style.display = 'none';
+      window.scrollTo(0, 0);
+      window.session_id = session_id; // Store session ID for later use
+      //document.getElementById("log").textContent = ""; // Clear log for next steps
+    }
+
+    async function step2login() {
+        const password = document.getElementById("password-step2").value;
+
+        if (!password) {
+            alert("Please enter the TOTP code.");
+            return;
+        }
+
+        log = msg => document.getElementById("log").textContent += msg + "\n";
+
+        document.querySelector('.loading-overlay').style.display = 'flex';
+        document.getElementById('loading-message').textContent = 'Completing login...';
+
+        // 5. Üzenet titkosítása NaCl Box-szal és aláírása
+      const message_payload = JSON.stringify({ data: {"password": password}, session_id: session_id, url: "/auth/api/step2" });
+      const message_payload_bytes = new TextEncoder().encode(message_payload); // Convert to Uint8Array
+      const nonceBox = nacl.randomBytes(24);
+      const encryptedMessage = nacl.box(
+        message_payload_bytes,
+        nonceBox,
+        serverEncPubKeyBytes,
+        clientPrivateKey
+      );
+      // Aláírás (titkosítatlan üzenet!)
+      const signature = nacl.sign.detached(message_payload_bytes, clientSignPrivateKey);
+
+      // 6. Titkosított üzenet és szignatúra elküldése
+      await fetch("/auth/api/step2", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          encrypted: bytesToHex(new Uint8Array([...nonceBox, ...encryptedMessage])),
+          signature: bytesToHex(signature),
+          session_id: session_id // Include session ID for server tracking
+        })
+      }).then(async resp => {
+        document.querySelector('.loading-overlay').style.display = 'none';
+        if (resp.status !== 200) {
+          alert("Login failed.");
+          window.location.reload();
+          return;
+        }
+
+        const data = await resp.json();
+        if (data.response && data.signature) {
+          // Válasz dekódolása
+          const encryptedResp = hexToBytes(data.response);
+          const respNonce = encryptedResp.slice(0, 24);
+          const respCipher = encryptedResp.slice(24);
+          const decrypted = nacl.box.open(
+            respCipher,
+            respNonce,
+            serverEncPubKeyBytes,
+            clientPrivateKey
+          );
+          if (decrypted) {
+            // Ellenőrizzük a szerver szignatúráját
+            const serverValid = nacl.sign.detached.verify(
+              decrypted,
+              hexToBytes(data.signature),
+              serverSignPubKeyBytes
+            );
+            if (serverValid) {
+              url = JSON.parse(new TextDecoder().decode(decrypted)).url || '/';
+              log("✔ Szerver válasza (hitelesítve): " + url);
+
+              document.querySelector('.loading-overlay').style.display = 'flex';
+                document.getElementById('loading-message').textContent = 'Completing login...';
+
+                // 5. Üzenet titkosítása NaCl Box-szal és aláírása
+              const message_payload = JSON.stringify({ data: {}, session_id: session_id, url: url });
+              const message_payload_bytes = new TextEncoder().encode(message_payload); // Convert to Uint8Array
+              const nonceBox = nacl.randomBytes(24);
+              const encryptedMessage = nacl.box(
+                message_payload_bytes,
+                nonceBox,
+                serverEncPubKeyBytes,
+                clientPrivateKey
+              );
+              // Aláírás (titkosítatlan üzenet!)
+              const signature = nacl.sign.detached(message_payload_bytes, clientSignPrivateKey);
+
+              redirectRes = await fetch(url, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                  encrypted: bytesToHex(new Uint8Array([...nonceBox, ...encryptedMessage])),
+                  signature: bytesToHex(signature),
+                  session_id: session_id // Include session ID for server tracking
+                })
+              }).then(async resp => {
+                  document.querySelector('.loading-overlay').style.display = 'none';
+                  if (resp.status !== 200) {
+                    alert("Login failed.");
+                    window.location.reload();
+                    return;
+                  }
+
+                  const data = await resp.json();
+                  if (data.response && data.signature) {
+                    // Válasz dekódolása
+                    const encryptedResp = hexToBytes(data.response);
+                    const respNonce = encryptedResp.slice(0, 24);
+                    const respCipher = encryptedResp.slice(24);
+                    const decrypted = nacl.box.open(
+                      respCipher,
+                      respNonce,
+                      serverEncPubKeyBytes,
+                      clientPrivateKey
+                    );
+                    if (decrypted) {
+                      // Ellenőrizzük a szerver szignatúráját
+                      const serverValid = nacl.sign.detached.verify(
+                        decrypted,
+                        hexToBytes(data.signature),
+                        serverSignPubKeyBytes
+                      );
+                      if (serverValid) {
+                        // write the page url
+                        const payload = JSON.parse(new TextDecoder().decode(decrypted));
+
+                        document.body.innerHTML = payload.html || 'sorry error, please reload the page';
+
+                        window.scrollTo(0, 0);
+
+                        const scripts = payload.scripts || [];  // Notice: 'scripts', not 'script'
+
+                        for (const code of scripts) {
+                            const scriptTag = document.createElement('script');
+                            scriptTag.textContent = code || '';
+                            document.body.appendChild(scriptTag);
+                        }
+
+                        const styleTag = document.createElement('style');
+                        styleTag.id = 'dynamic-style';
+                        document.body.appendChild(styleTag);
+                        styleTag.textContent = payload.style || 'text { color: #000; }';
+
+                        document.title = payload.title || 'Payment Portal';
+
+
+                      } else {
+                        log("❌ Szerver válasza: szignatúra érvénytelen!");
+                      }
+                    } else {
+                      log("❌ Nem sikerült visszafejteni a szerver válaszát!");
+                    }
+                  } else if (data.error) {
+                    log("❌ Hiba: " + data.error);
+                  }
+                });
+                
+
+            } else {
+              log("❌ Szerver válasza: szignatúra érvénytelen!");
+            }
+          } else {
+            log("❌ Nem sikerült visszafejteni a szerver válaszát!");
+          }
+        } else if (data.error) {
+          log("❌ Hiba: " + data.error);
+        }
+      });
     }
     
+
 
     
 
   </script>
-{% endblock %}
+
+</body>
+</html>

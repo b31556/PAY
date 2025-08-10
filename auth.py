@@ -3,6 +3,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from flask import ctx
 from nacl.public import PrivateKey, PublicKey
 from nacl.signing import SigningKey, VerifyKey
 import hashlib
@@ -260,10 +261,12 @@ async def keyexchange(request: fastapi.Request):
     payload = {
         "enc_pubkey": server_enc_public.hex(),
         "sign_pubkey": server_sign_public.hex(),
-        "timestamp": int(datetime.now().timestamp())
+        "timestamp": int(datetime.now().timestamp()),
+        "username": f"{session.username}; {(random.randint(1, 20)*9)-1}",
     }
     serialized = json.dumps(payload).encode()
     encrypted = aesgcm.encrypt(my_nonce, serialized, None)
+
     return fastapi.responses.JSONResponse(
         content={
             "nonce": my_nonce.hex(),
@@ -281,58 +284,35 @@ async def message(ctx: RequestContext = Depends(process_request)):
 
 
 @app.post("/step2")
-async def step2(request: fastapi.Request):
+async def step2(ctx: RequestContext = Depends(process_request)):
     """Step 2 of the login process, where user provides TOTP.
     """
-    pyl = await request.json()
-    data = pyl.get("data")
-    signature = pyl.get("signature")
-    if not data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="no data provided",
+    
+    session = db_session.query(Session).filter_by(session_id=ctx.session_id).first()
+    user = session.user if session else None
+
+    if session.state != "step1":
+        return fastapi.responses.JSONResponse(
+            content={"error": "Invalid session state"},
+            status_code=400
         )
-    if not signature:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="no signature provided",
-        )
-    if not request.cookies.get("session_step1"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No session_step1 cookie found"
+
+    data = ctx.data
+    otp_code = data.get("password")
+
+    if not otp_code:
+        return fastapi.responses.JSONResponse(
+            content={"error": "Missing OTP code"},
+            status_code=400
         )
     
-    sestoken = db_session.query(AccessToken).filter_by(token=request.cookies.get("session_step1"), type="session_step1").first()
-
-    if not sestoken:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid session_step1 token")
-    if sestoken.expires_at < datetime.now().isoformat():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session_step1 token expired")
-    user = sestoken.user
-
-    public_key_dob = db_session.query(SigKey).filter_by(session_id=sestoken.id).first()
-    
-    verify_signature(sestoken.id, data, signature)
-
-    totp = json.loads(data).get("password")
-
-    user = auth_totp(user, totp)
-    access_token = generate_access_token(user, token_type="session_cookie", timeout_hours=SESSION_TIMEOUT, len=128)
-    public_key_dob.session_id = access_token.id
-    public_key_dob.expires_at = (datetime.now() + timedelta(hours=SESSION_TIMEOUT)).isoformat()
+    auth_totp(user, otp_code)
+    session.state = "verified"
+    session.updated_at = datetime.now().isoformat()
+    db_session.add(session)
     db_session.commit()
-    response = fastapi.responses.JSONResponse(
-        content={
-            "url": "/app/dashboard"
-            })
-    remove_access_token(request.cookies.get("session_step1"))
-    response.set_cookie(key="session_token", value=access_token.token, httponly=True, max_age=SESSION_TIMEOUT/60/60, samesite="Lax")
-    response.set_cookie(key="session_step1", value="", httponly=True, max_age=0, samesite="Lax")  # Clear the session_step1 cookie
-    return response
-
-
+    return process_response(
+        {"message": "TOTP verified successfully", "code": 200, "url": "/app/dashboard"},
+        ctx
+    )
+    
