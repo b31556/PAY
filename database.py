@@ -7,6 +7,8 @@ from config import DATABASE
 
 engine = create_engine(DATABASE, echo=True)
 Session = sessionmaker(bind=engine)
-db_session = Session()
+
+def db_session():
+    return Session()
 
 Base.metadata.create_all(engine)
