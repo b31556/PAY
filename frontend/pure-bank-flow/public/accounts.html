@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Accounts and Cards | Manage Accounts - SecureBank</title>
+    <meta name="description" content="Manage your SecureBank accounts and cards, view balances, and control card settings.">
+    <link rel="canonical" href="accounts.html">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="cards.css">
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-brand">
+                <span>🏦</span>
+                <span>SecureBank</span>
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html">📊 Dashboard</a></li>
+                <li><a href="accounts.html" class="active">💳 Accounts</a></li>
+                <li><a href="transactions.html">📋 Transactions</a></li>
+                <li><a href="transfer.html">💸 Transfer</a></li>
+                <li><a href="bills.html">📄 Pay Bills</a></li>
+                <li><a href="profile.html">👤 Profile</a></li>
+                <li><a href="settings.html">⚙️ Settings</a></li>
+                <li><a href="#" onclick="logout()">🚪 Logout</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="space-y-6">
+                <!-- Header -->
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                    <div>
+                        <h1 class="text-3xl font-bold">Accounts & Cards</h1>
+                        <p class="text-muted mt-2">Manage your banking accounts and cards</p>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="btnCreateAccount" class="btn btn-primary">+ Add Account</button>
+                        <button id="btnCreateCard" class="btn btn-secondary">+ Create Card</button>
+                    </div>
+                </div>
+
+                <!-- Account Summary -->
+                <div class="grid grid-cols-3">
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 class="text-sm text-muted">Total Balance</h3>
+                            <p class="text-2xl font-bold balance-positive" id="totalBalance">Loading...</p>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 class="text-sm text-muted">Active Accounts</h3>
+                            <p class="text-2xl font-bold" id="activeAccounts">Loading...</p>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 class="text-sm text-muted">Available Credit</h3>
+                            <p class="text-2xl font-bold text-success" id="availableCredit">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bank Cards -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Bank Cards</h2>
+                        <p class="card-description">Manage your debit and credit cards</p>
+                    </div>
+                    <div class="card-content">
+                        <div id="cardsGrid" class="bank-cards-grid">
+                            <!-- Cards will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Accounts List -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Account Details</h2>
+                        <p class="card-description">View and manage your account information</p>
+                    </div>
+                    <div class="card-content">
+                        <div id="accountsList">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="createAccountModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-backdrop" data-close="createAccountModal"></div>
+        <div class="modal-dialog" role="dialog" aria-modal="true">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Create New Account</h2>
+                    <p class="card-description">Open a Checking, Savings, or Credit Card account</p>
+                </div>
+                <div class="card-content">
+                    <form id="createAccountForm" class="form">
+                        <div class="form-group">
+                            <label for="accountType" class="label">Account Type</label>
+                            <select id="accountType" class="input" required>
+                                <option value="">Select type</option>
+                                <option value="Checking">Checking</option>
+                                <option value="Savings">Savings</option>
+                                <option value="Credit Card">Credit Card</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="initialBalance" class="label">Initial Balance</label>
+                            <input id="initialBalance" type="number" step="0.01" min="0" class="input" placeholder="0.00">
+                        </div>
+                        <div class="form-group" id="creditLimitGroup">
+                            <label for="creditLimit" class="label">Credit Limit (for Credit Cards)</label>
+                            <input id="creditLimit" type="number" step="0.01" min="0" class="input" placeholder="5000.00">
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                            <button type="button" class="btn btn-secondary" data-close="createAccountModal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Create Account</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="createCardModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-backdrop" data-close="createCardModal"></div>
+        <div class="modal-dialog" role="dialog" aria-modal="true">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Create New Card</h2>
+                    <p class="card-description">Issue a new debit or credit card</p>
+                </div>
+                <div class="card-content">
+                    <form id="createCardForm" class="form">
+                        <div class="form-group">
+                            <label for="linkedAccount" class="label">Linked Account</label>
+                            <select id="linkedAccount" class="input" required>
+                                <option value="">Select account</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cardBrand" class="label">Brand</label>
+                            <select id="cardBrand" class="input" required>
+                                <option value="Visa">Visa</option>
+                                <option value="Mastercard">Mastercard</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="holderName" class="label">Cardholder Name</label>
+                            <input id="holderName" type="text" class="input" placeholder="Name on card" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="cardType" class="label">Card Type</label>
+                            <select id="cardType" class="input">
+                                <option value="physical">Physical</option>
+                                <option value="virtual">Virtual</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                            <button type="button" class="btn btn-secondary" data-close="createCardModal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Create Card</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="banking-api.js"></script>
+    <script>
+        // Check authentication
+        if (!isAuthenticated()) {
+            Redirect('login.html');
+        }
+
+        const $ = (id) => document.getElementById(id);
+
+        // Modal controls
+        function openModal(id) { $(id)?.classList.remove('hidden'); }
+        function closeModal(id) { $(id)?.classList.add('hidden'); }
+
+        document.body.addEventListener('click', (e) => {
+            const target = e.target;
+            if (target instanceof Element) {
+                const closeId = target.getAttribute('data-close');
+                if (closeId) return closeModal(closeId);
+                if (target.classList.contains('modal-backdrop')) {
+                    const id = target.getAttribute('data-close');
+                    if (id) closeModal(id);
+                }
+            }
+        });
+
+        // Toggle credit limit field visibility
+        function toggleCreditLimit() {
+            const type = $('accountType').value;
+            const group = $('creditLimitGroup');
+            if (group) group.style.display = type === 'Credit Card' ? '' : 'none';
+        }
+        $('accountType').addEventListener('change', toggleCreditLimit);
+
+        // Load accounts data
+        async function loadAccounts() {
+            try {
+                const response = await SendRequest('/accounts');
+                const accounts = response.accounts || [];
+                
+                // Calculate totals
+                const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+                const activeAccounts = accounts.filter(acc => acc.status === 'active').length;
+                const creditAccount = accounts.find(acc => acc.type === 'Credit Card');
+                const availableCredit = creditAccount ? creditAccount.creditLimit + creditAccount.balance : 0;
+
+                // Update summary
+                $('totalBalance').textContent = formatCurrency(totalBalance);
+                $('activeAccounts').textContent = activeAccounts;
+                $('availableCredit').textContent = formatCurrency(availableCredit);
+
+                // Populate accounts list
+                const accountsList = $('accountsList');
+                accountsList.innerHTML = accounts.map(account => `
+                    <div class="card mb-4">
+                        <div class="card-content">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                                <div style="flex: 1;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                        <span style="font-size: 1.5rem;">💳</span>
+                                        <h3 class="text-xl font-bold">${account.type}</h3>
+                                        <span class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                            ${account.status}
+                                        </span>
+                                    </div>
+                                    <p class="text-muted">Account Number: ${account.accountNumber}</p>
+                                    ${account.creditLimit ? `<p class="text-muted">Credit Limit: ${formatCurrency(account.creditLimit)}</p>` : ''}
+                                </div>
+                                <div style="text-align: right;">
+                                    <p class="text-2xl font-bold ${account.balance >= 0 ? 'balance-positive' : 'balance-negative'}">
+                                        ${formatCurrency(account.balance)}
+                                    </p>
+                                    <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                        <a href="transactions.html?account=${account.id}" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">View Transactions</a>
+                                        <a href="transfer.html?from=${account.id}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Transfer</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Populate linked account select for card creation
+                const linked = $('linkedAccount');
+                if (linked) {
+                    linked.innerHTML = '<option value="">Select account</option>' + accounts.map(a => `<option value="${a.id}">${a.type} ${a.accountNumber}</option>`).join('');
+                }
+
+                return accounts;
+
+            } catch (error) {
+                showToast('Failed to load accounts data', 'error');
+                console.error('Accounts error:', error);
+                return [];
+            }
+        }
+
+        // Load and render cards
+        async function loadCards() {
+            try {
+                const res = await SendRequest('/cards');
+                const cards = res.cards || [];
+                const grid = $('cardsGrid');
+                if (!grid) return;
+                if (!cards.length) {
+                    grid.innerHTML = '<p class="text-muted">No cards yet. Use "Create Card" to issue a new one.</p>';
+                    return;
+                }
+                grid.innerHTML = cards.map(c => {
+                    const brandClass = (c.brand || '').toLowerCase();
+                    const freezeText = c.status === 'frozen' ? 'Unfreeze' : 'Freeze';
+                    return `
+                        <article class="bank-card ${brandClass} ${c.status === 'frozen' ? 'is-frozen' : ''}" aria-label="${c.brand} card ending ${c.last4}">
+                            <header class="bank-card__top">
+                                <div class="bank-card__brand">${c.brand}</div>
+                                <div class="bank-card__chip" aria-hidden="true"></div>
+                            </header>
+                            <div class="bank-card__number">**** **** **** ${c.last4}</div>
+                            <footer class="bank-card__bottom">
+                                <div class="bank-card__holder">
+                                    <div class="label">Cardholder</div>
+                                    <div class="value">${c.holderName}</div>
+                                </div>
+                                <div class="bank-card__expiry">
+                                    <div class="label">Expires</div>
+                                    <div class="value">${c.expiry}</div>
+                                </div>
+                            </footer>
+                            <div class="bank-card__actions">
+                                <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.875rem;" data-action="toggle-freeze" data-card-id="${c.id}">${freezeText}</button>
+                            </div>
+                        </article>`;
+                }).join('');
+            } catch (err) {
+                showToast('Failed to load cards', 'error');
+                console.error('Cards error:', err);
+            }
+        }
+
+        // Freeze/unfreeze handler (event delegation)
+        $('cardsGrid').addEventListener('click', async (e) => {
+            const target = e.target;
+            if (!(target instanceof Element)) return;
+            const btn = target.closest('button[data-action="toggle-freeze"]');
+            if (!btn) return;
+            const id = btn.getAttribute('data-card-id');
+            if (!id) return;
+            const original = btn.textContent;
+            btn.textContent = 'Updating...';
+            btn.classList.add('btn-disabled');
+            try {
+                const res = await SendRequest('/cards/toggle', { cardId: id });
+                showToast(res.message || 'Updated', 'success');
+                await loadCards();
+            } catch (err) {
+                showToast(err.message || 'Failed to update card', 'error');
+            } finally {
+                btn.textContent = original;
+                btn.classList.remove('btn-disabled');
+            }
+        });
+
+        // Open modals
+        $('btnCreateAccount').addEventListener('click', () => { openModal('createAccountModal'); toggleCreditLimit(); });
+        $('btnCreateCard').addEventListener('click', () => {
+            const user = getCurrentUser();
+            if ($('holderName')) $('holderName').value = (user && user.name) || '';
+            openModal('createCardModal');
+        });
+
+        // Create Account submit
+        $('createAccountForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const type = $('accountType').value;
+            const balance = parseFloat($('initialBalance').value || '0');
+            const creditLimit = parseFloat($('creditLimit').value || '0');
+            try {
+                const res = await SendRequest('/accounts/create', { type, balance, creditLimit });
+                if (res.success) {
+                    showToast('Account created successfully', 'success');
+                    closeModal('createAccountModal');
+                    $('createAccountForm').reset();
+                    toggleCreditLimit();
+                    await loadAccounts();
+                }
+            } catch (err) {
+                showToast(err.message || 'Failed to create account', 'error');
+            }
+        });
+
+        // Create Card submit
+        $('createCardForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const accountId = $('linkedAccount').value;
+            const brand = $('cardBrand').value;
+            const holderName = $('holderName').value;
+            const type = $('cardType').value;
+            if (!accountId) return showToast('Please select a linked account', 'error');
+            try {
+                const res = await SendRequest('/cards/create', { accountId, brand, holderName, type });
+                if (res.success) {
+                    showToast('Card created successfully', 'success');
+                    closeModal('createCardModal');
+                    $('createCardForm').reset();
+                    await loadCards();
+                }
+            } catch (err) {
+                showToast(err.message || 'Failed to create card', 'error');
+            }
+        });
+
+        // Initial load
+        toggleCreditLimit();
+        loadAccounts().then(() => loadCards());
+    </script>
+
+</body>
+</html>

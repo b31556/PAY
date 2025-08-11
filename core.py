@@ -2,15 +2,9 @@ from models import Transaction, User
 from database import db_session
 from sqlalchemy import func
 import os
-from fastapi import APIRouter
 import datetime
 from typing import Dict
-from sqlalchemy.orm import Session
 
-
-app = APIRouter()
-
-@app.get("/balance/{user_id}")
 
 
 def recalculate_balance(user_id: int):

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pay Bills - SecureBank</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-brand">
+                <span>🏦</span>
+                <span>SecureBank</span>
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html">📊 Dashboard</a></li>
+                <li><a href="accounts.html">💳 Accounts</a></li>
+                <li><a href="transactions.html">📋 Transactions</a></li>
+                <li><a href="transfer.html">💸 Transfer</a></li>
+                <li><a href="bills.html" class="active">📄 Pay Bills</a></li>
+                <li><a href="profile.html">👤 Profile</a></li>
+                <li><a href="settings.html">⚙️ Settings</a></li>
+                <li><a href="#" onclick="logout()">🚪 Logout</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="space-y-6">
+                <!-- Header -->
+                <div>
+                    <h1 class="text-3xl font-bold">Pay Bills</h1>
+                    <p class="text-muted mt-2">Manage and pay your bills</p>
+                </div>
+
+                <div class="grid grid-cols-2">
+                    <!-- Pay Bill Form -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Make a Payment</h2>
+                            <p class="card-description">Pay your bills quickly and securely</p>
+                        </div>
+                        <div class="card-content">
+                            <form id="billPaymentForm" class="form">
+                                <div class="form-group">
+                                    <label for="biller" class="label">Select Biller</label>
+                                    <select id="biller" class="input" required>
+                                        <option value="">Choose a biller</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="paymentAccount" class="label">Payment Account</label>
+                                    <select id="paymentAccount" class="input" required>
+                                        <option value="">Select payment account</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="amount" class="label">Amount</label>
+                                    <input type="number" id="amount" class="input" placeholder="0.00" step="0.01" min="0.01" required>
+                                    <p class="text-sm text-muted">Suggested: <span id="suggestedAmount">$0.00</span></p>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="paymentDate" class="label">Payment Date</label>
+                                    <input type="date" id="paymentDate" class="input" required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="memo" class="label">Memo (Optional)</label>
+                                    <input type="text" id="memo" class="input" placeholder="Payment reference">
+                                </div>
+
+                                <button type="submit" id="submitBtn" class="btn btn-primary btn-full">
+                                    Schedule Payment
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Upcoming Bills -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Upcoming Bills</h2>
+                            <p class="card-description">Bills due soon</p>
+                        </div>
+                        <div class="card-content">
+                            <div id="upcomingBills">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Payments -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Recent Payments</h2>
+                        <p class="card-description">Your recent bill payments</p>
+                    </div>
+                    <div class="card-content">
+                        <div id="recentPayments">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="banking-api.js"></script>
+    <script>
+        // Check authentication
+        if (!isAuthenticated()) {
+            Redirect('login.html');
+        }
+
+        let billers = [];
+        let accounts = [];
+
+        // Load bills data
+        async function loadBillsData() {
+            try {
+                const user = getCurrentUser();
+                const response = await SendRequest('/bills');
+                
+                billers = response.billers;
+                accounts = user.accounts.filter(acc => acc.status === 'active');
+                
+                // Populate biller dropdown
+                const billerSelect = document.getElementById('biller');
+                billerSelect.innerHTML = '<option value="">Choose a biller</option>';
+                billers.forEach(biller => {
+                    const option = document.createElement('option');
+                    option.value = biller.id;
+                    option.textContent = biller.name;
+                    option.dataset.amount = biller.amount;
+                    billerSelect.appendChild(option);
+                });
+
+                // Populate payment account dropdown
+                const accountSelect = document.getElementById('paymentAccount');
+                accountSelect.innerHTML = '<option value="">Select payment account</option>';
+                accounts.forEach(account => {
+                    const option = document.createElement('option');
+                    option.value = account.id;
+                    option.textContent = `${account.type} ${account.accountNumber} - ${formatCurrency(account.balance)}`;
+                    accountSelect.appendChild(option);
+                });
+
+                // Set default payment date (today)
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('paymentDate').value = today;
+
+                // Load upcoming bills
+                loadUpcomingBills(response.billers);
+                
+                // Load recent payments
+                loadRecentPayments(response.recentPayments);
+                
+            } catch (error) {
+                showToast('Failed to load bills data', 'error');
+                console.error('Bills error:', error);
+            }
+        }
+
+        // Load upcoming bills
+        function loadUpcomingBills(billers) {
+            const upcomingBills = document.getElementById('upcomingBills');
+            upcomingBills.innerHTML = billers.map(biller => {
+                const dueDate = new Date(biller.nextDue);
+                const today = new Date();
+                const daysUntilDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+                const isOverdue = daysUntilDue < 0;
+                const isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
+                
+                return `
+                    <div class="transaction-item">
+                        <div>
+                            <p class="font-bold">${biller.name}</p>
+                            <p class="text-sm text-muted">${biller.accountNumber}</p>
+                            <p class="text-sm ${isOverdue ? 'text-error' : isDueSoon ? 'text-warning' : 'text-muted'}">
+                                Due: ${formatDate(biller.nextDue)}
+                                ${isOverdue ? '(OVERDUE)' : isDueSoon ? '(DUE SOON)' : ''}
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-lg font-bold">${formatCurrency(biller.amount)}</p>
+                            <button class="btn btn-primary btn-sm" onclick="payBill('${biller.id}', ${biller.amount})" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                Pay Now
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Load recent payments
+        function loadRecentPayments(payments) {
+            const recentPayments = document.getElementById('recentPayments');
+            recentPayments.innerHTML = payments.map(payment => `
+                <div class="transaction-item">
+                    <div>
+                        <p class="font-bold">${payment.biller}</p>
+                        <p class="text-sm text-muted">${formatDate(payment.date)}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-lg font-bold">${formatCurrency(payment.amount)}</p>
+                        <span class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                            ${payment.status}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Pay bill function (called from Pay Now button)
+        function payBill(billerId, amount) {
+            document.getElementById('biller').value = billerId;
+            document.getElementById('amount').value = amount;
+            updateSuggestedAmount();
+        }
+
+        // Update suggested amount when biller changes
+        function updateSuggestedAmount() {
+            const billerSelect = document.getElementById('biller');
+            const selectedOption = billerSelect.options[billerSelect.selectedIndex];
+            const suggestedAmount = document.getElementById('suggestedAmount');
+            
+            if (selectedOption && selectedOption.dataset.amount) {
+                suggestedAmount.textContent = formatCurrency(parseFloat(selectedOption.dataset.amount));
+                document.getElementById('amount').value = selectedOption.dataset.amount;
+            } else {
+                suggestedAmount.textContent = '$0.00';
+            }
+        }
+
+        // Validate payment
+        function validatePayment() {
+            const biller = document.getElementById('biller').value;
+            const account = document.getElementById('paymentAccount').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const paymentDate = document.getElementById('paymentDate').value;
+
+            if (!biller) {
+                showToast('Please select a biller', 'error');
+                return false;
+            }
+
+            if (!account) {
+                showToast('Please select a payment account', 'error');
+                return false;
+            }
+
+            if (!amount || amount <= 0) {
+                showToast('Please enter a valid amount', 'error');
+                return false;
+            }
+
+            if (!paymentDate) {
+                showToast('Please select a payment date', 'error');
+                return false;
+            }
+
+            const paymentAccount = accounts.find(acc => acc.id === account);
+            if (amount > paymentAccount.balance) {
+                showToast('Insufficient funds in selected account', 'error');
+                return false;
+            }
+
+            return true;
+        }
+
+        // Handle form submission
+        document.getElementById('billPaymentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!validatePayment()) return;
+
+            const submitBtn = document.getElementById('submitBtn');
+            const formData = {
+                billerId: document.getElementById('biller').value,
+                paymentAccount: document.getElementById('paymentAccount').value,
+                amount: parseFloat(document.getElementById('amount').value),
+                paymentDate: document.getElementById('paymentDate').value,
+                memo: document.getElementById('memo').value
+            };
+
+            // Show loading state
+            submitBtn.innerHTML = '<span class="spinner"></span>Scheduling Payment...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await SendRequest('/bills/pay', formData);
+                
+                if (response.success) {
+                    showToast('Bill payment scheduled successfully!', 'success');
+                    document.getElementById('billPaymentForm').reset();
+                    
+                    // Reset suggested amount
+                    document.getElementById('suggestedAmount').textContent = '$0.00';
+                    
+                    // Set default payment date
+                    const today = new Date().toISOString().split('T')[0];
+                    document.getElementById('paymentDate').value = today;
+                    
+                    // Reload bills data
+                    loadBillsData();
+                } else {
+                    throw new Error('Payment scheduling failed');
+                }
+            } catch (error) {
+                showToast(error.message || 'Payment scheduling failed', 'error');
+            } finally {
+                submitBtn.innerHTML = 'Schedule Payment';
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Event listener for biller change
+        document.getElementById('biller').addEventListener('change', updateSuggestedAmount);
+
+        // Load bills data on page load
+        loadBillsData();
+    </script>
+</body>
+</html>

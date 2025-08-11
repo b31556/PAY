@@ -20,8 +20,6 @@ import auth
 
 from config import PORT, URL, DATABASE
 
-import core
-
 import ui
 
 import auth_ui
@@ -40,10 +38,8 @@ app.add_middleware(
 
 app.mount("/static", fastapi.staticfiles.StaticFiles(directory="static"), name="static")
 
-app.include_router(auth.app, prefix="/auth/api", tags=["auth"])
-app.include_router(core.app, prefix="/api/core", tags=["core"])
-app.include_router(ui.app, prefix="/app", tags=["ui"])
-app.include_router(auth_ui.app, prefix="/auth", tags=["auth_ui"])
+app.include_router(auth.app, prefix="/auth/api/v1", tags=["auth"])
+app.include_router(ui.app, prefix="/api/v1", tags=["ui"])
 
 
 @app.get("/favicon.ico")

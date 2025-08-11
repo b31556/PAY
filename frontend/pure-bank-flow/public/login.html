@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - SecureBank</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="min-h-screen bg-gradient">
+        <div class="container">
+            <div style="width: 100%; max-width: 400px;">
+                <!-- Logo -->
+                <div class="text-center mb-6">
+                    <div class="logo-icon">🏦</div>
+                    <h1 class="logo-title text-white">SecureBank</h1>
+                    <p class="logo-subtitle text-white">Welcome back to secure banking</p>
+                </div>
+
+                <!-- Login Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Sign In</h2>
+                        <p class="card-description">Enter your credentials to access your account</p>
+                    </div>
+                    <div class="card-content">
+                        <form id="loginForm" class="form">
+                            <div class="form-group">
+                                <label for="email" class="label">Email</label>
+                                <input type="email" id="email" class="input" placeholder="john@example.com" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="password" class="label">Password</label>
+                                <div style="position: relative;">
+                                    <input type="password" id="password" class="input" placeholder="Enter your password" required style="padding-right: 3rem;">
+                                    <button type="button" id="togglePassword" style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer;">
+                                        👁️
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button type="submit" id="submitBtn" class="btn btn-primary btn-full">
+                                Sign In
+                            </button>
+                        </form>
+
+                        <div class="mt-4 text-center">
+                            <p class="text-sm text-muted">
+                                Don't have an account? 
+                                <a href="signup.html" style="color: var(--banking-primary); text-decoration: none; font-weight: 500;">Sign up here</a>
+                            </p>
+                        </div>
+
+                        <div style="margin-top: 1.5rem; padding: 1rem; background: #f3f4f6; border-radius: var(--border-radius);">
+                            <p class="text-sm font-bold mb-2">Demo Credentials:</p>
+                            <p class="text-sm">Email: demo@example.com</p>
+                            <p class="text-sm">Password: demo123</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="banking-api.js"></script>
+    <script>
+        // Check if already logged in
+        if (isAuthenticated()) {
+            Redirect('dashboard.html');
+        }
+
+        const loginForm = document.getElementById('loginForm');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const submitBtn = document.getElementById('submitBtn');
+        const togglePassword = document.getElementById('togglePassword');
+
+        // Toggle password visibility
+        togglePassword.addEventListener('click', () => {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            togglePassword.textContent = type === 'password' ? '👁️' : '🙈';
+        });
+
+        // Handle form submission
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+
+            if (!email || !password) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+
+            // Show loading state
+            submitBtn.innerHTML = '<span class="spinner"></span>Signing in...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await SendRequest('/login', { email, password });
+                
+                if (response.success) {
+                    showToast('Login successful! Redirecting...', 'success');
+                    setTimeout(() => {
+                        Redirect('dashboard.html');
+                    }, 1000);
+                } else {
+                    throw new Error('Login failed');
+                }
+            } catch (error) {
+                showToast(error.message || 'Login failed', 'error');
+                submitBtn.innerHTML = 'Sign In';
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

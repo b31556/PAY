@@ -1,5 +1,6 @@
+import json
 from fastapi import FastAPI, HTTPException, APIRouter, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 import fastapi.staticfiles
 from typing import Dict
 import os
@@ -10,141 +11,111 @@ import fastapi
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from fastapi.encoders import jsonable_encoder
+from requests_cache import datetime
 import auth
-
+import core
 from database import db_session
 from models import User, Transaction, Card, AccessToken, OtpSecret, Session
 from config import URL, PORT, DATABASE, SESSION_TIMEOUT, STEP1_TIMEOUT
 
 from encrpt import process_response, process_request, RequestContext
+from utils import make_transaction_title
 
 app = APIRouter()
 
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", fastapi.staticfiles.StaticFiles(directory="static"), name="static")
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 async def index():
-    """
-    Render the main page.
-    """
-    return templates.TemplateResponse("index.html", {"request": {}})
+    return JSONResponse(content={"health": "ok"})
 
 
-@app.post("/dashboard")
-async def dashboard(ctx: RequestContext = Depends(process_request), request: Request = fastapi.Request):
-    """
-    Render the dashboard page.
-    """
-    ctx
+@app.get("/health")
+async def health_check():
+    return JSONResponse(content={"health": "ok"})
 
-    html_content = templates.get_template("dashboard.html").render(request=request)
-    
-    with open("templates/styles.css", "r") as f:
-        css_content = f.read()
 
-    with open("templates/dashboard.js", "r") as f:
-        js_content = f.read()
+@app.post("/me")
+def get_me(ctx: RequestContext = Depends(process_request)):
+    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return JSONResponse(content={"username": user.username, "email": user.email, "full_name": user.full_name})
 
-    with open("templates/banking-api.js", "r") as f:
-        banking_api_content = f.read()
 
-    return process_response(
-        {
-            "html": html_content,
-            "style": css_content,
-            "scripts": [banking_api_content, js_content],
-            "title": "Dashboard",
-            "code": 200
-        },
-        ctx
-    )
-    
+@app.post("/balances")
+def get_balances(ctx: RequestContext = Depends(process_request)):
+    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    response = {"total": 0, "accounts": [], "recent_transactions": [], "percent_compared_to_last_month": 0}
+    accounts = user.accounts
+    total=0
+    for account in accounts:
+        total += account.balance
+        response["accounts"].append({
+            "bank_account_number": account.bank_account_number,
+            "holder_name": account.holder_name,
+            "balance": account.balance,
+            "currency": account.currency,
+            "account_type": account.account_type,
+        })
+
+    recent_incomes = db_session.query(Transaction).filter_by(receiver_id=user.id).order_by(Transaction.created_at.desc()).limit(10).all()
+    recent_spendings = db_session.query(Transaction).filter_by(sender_id=user.id).order_by(Transaction.created_at.desc()).limit(10).all()
+
+    recent = recent_incomes + recent_spendings
+    recent.sort(key=lambda x: x.created_at, reverse=True)
+    recent = recent[:10]
+    for tx in recent:
+        response["recent_transactions"].append({
+            "type": "income" if tx in recent_incomes else "spending",
+            "amount": tx.amount,
+            "created_at": str(tx.created_at),
+            "title": make_transaction_title(tx),
+        })
+
+    last_month_balances = [json.loads(x.last_balances)[-1] for x in user.accounts if len(json.loads(x.last_balances)) > 1]
+
+    response["total"] = total
+    response["percent_compared_to_last_month"] = (sum(x.balance for x in user.accounts) - sum(last_month_balances)) / sum(last_month_balances) * 100 if sum(last_month_balances) != 0 else 0
+    return JSONResponse(content=response)
+
 
 @app.post("/accounts")
-async def accounts(ctx: RequestContext = Depends(process_request), request: Request = fastapi.Request):
-    """
-    Render the accounts page.
-    """
-    ctx
+def get_accounts(ctx: RequestContext = Depends(process_request)):
+    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    html_content = templates.get_template("accounts.html").render(request=request)
+    accounts = user.accounts
+    response = {"accounts": [], "cards": []}
+    for account in accounts:
+        response["accounts"].append({
+            "uuid": account.uuid,
+            "bank_account_number": account.bank_account_number,
+            "holder_name": account.holder_name,
+            "balance": account.balance,
+            "currency": account.currency,
+            "account_type": account.account_type,
+            "available_balance": account.balance, #TODO: Implement available balance calculation for credit accounts
+            "thm": "0%", #TODO: Implement THM calculation
+            "fillup_timeline": str(datetime.now().isoformat()), #TODO: Implement fillup timeline calculation
+            "kamat": "0%", #TODO: Implement kamat calculation
+            "kamet_this_year": "0%" #TODO: Implement kamet calculation
+        })
 
-    with open("templates/styles.css", "r") as f:
-        css_content = f.read()
+    cards = user.cards
+    for card in cards:
+        response["cards"].append({
+            "card_number": card.card_number,
+            "card_holder": card.card_holder,
+            "expiration_date": str(card.expiration_date),
+            "cvv": card.ccv,
+            "card_type": card.card_type,
+            "account_uuid": card.account.uuid
+        })
 
-    with open("templates/accounts.js", "r") as f:
-        js_content = f.read()
-
-    with open("templates/banking-api.js", "r") as f:
-        banking_api_content = f.read()
-
-    return process_response(
-        {
-            "html": html_content,
-            "style": css_content,
-            "scripts": [banking_api_content, js_content],
-            "title": "Accounts",
-            "code": 200
-        },
-        ctx
-    )
-
-@app.post("/transactions")
-async def transactions(ctx: RequestContext = Depends(process_request), request: Request = fastapi.Request):
-    """
-    Render the transactions page.
-    """
-    ctx
-
-    html_content = templates.get_template("transactions.html").render(request=request)
-
-    with open("templates/styles.css", "r") as f:
-        css_content = f.read()
-
-    with open("templates/transactions.js", "r") as f:
-        js_content = f.read()
-
-    with open("templates/banking-api.js", "r") as f:
-        banking_api_content = f.read()
-
-    return process_response(
-        {
-            "html": html_content,
-            "style": css_content,
-            "scripts": [banking_api_content, js_content],
-            "title": "Transactions",
-            "code": 200
-        },
-        ctx
-    )
-
-
-@app.post("/transfer")
-async def transfer(ctx: RequestContext = Depends(process_request), request: Request = fastapi.Request):
-    """
-    Render the transfer page.
-    """
-    ctx
-
-    html_content = templates.get_template("transfer.html").render(request=request)
-
-    with open("templates/styles.css", "r", encoding="utf-8") as f:
-        css_content = f.read()
-
-    with open("templates/transfer.js", "r", encoding="utf-8") as f:
-        js_content = f.read()
-
-    with open("templates/banking-api.js", "r", encoding="utf-8") as f:
-        banking_api_content = f.read()
-
-    return process_response(
-        {
-            "html": html_content,
-            "style": css_content,
-            "scripts": [banking_api_content, js_content],
-            "title": "Transfer",
-            "code": 200
-        },
-        ctx
-    )
+    return JSONResponse(content=response)

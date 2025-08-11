@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - SecureBank</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-brand">
+                <span>🏦</span>
+                <span>SecureBank</span>
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html">📊 Dashboard</a></li>
+                <li><a href="accounts.html">💳 Accounts</a></li>
+                <li><a href="transactions.html">📋 Transactions</a></li>
+                <li><a href="transfer.html">💸 Transfer</a></li>
+                <li><a href="bills.html">📄 Pay Bills</a></li>
+                <li><a href="profile.html" class="active">👤 Profile</a></li>
+                <li><a href="settings.html">⚙️ Settings</a></li>
+                <li><a href="#" onclick="logout()">🚪 Logout</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="space-y-6">
+                <!-- Header -->
+                <div>
+                    <h1 class="text-3xl font-bold">Profile Settings</h1>
+                    <p class="text-muted mt-2">Manage your personal information and security</p>
+                </div>
+
+                <div class="grid grid-cols-2">
+                    <!-- Personal Information -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Personal Information</h2>
+                            <p class="card-description">Update your contact details</p>
+                        </div>
+                        <div class="card-content">
+                            <form id="profileForm" class="form">
+                                <div class="form-group">
+                                    <label for="name" class="label">Full Name</label>
+                                    <input type="text" id="name" class="input" required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="email" class="label">Email Address</label>
+                                    <input type="email" id="email" class="input" required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="phone" class="label">Phone Number</label>
+                                    <input type="tel" id="phone" class="input" required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="address" class="label">Address</label>
+                                    <textarea id="address" class="input" rows="3" placeholder="Street Address, City, State, ZIP"></textarea>
+                                </div>
+
+                                <button type="submit" id="profileSubmitBtn" class="btn btn-primary btn-full">
+                                    Update Profile
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Security Settings -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Security Settings</h2>
+                            <p class="card-description">Change your password and security preferences</p>
+                        </div>
+                        <div class="card-content">
+                            <form id="passwordForm" class="form">
+                                <div class="form-group">
+                                    <label for="currentPassword" class="label">Current Password</label>
+                                    <input type="password" id="currentPassword" class="input" required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="newPassword" class="label">New Password</label>
+                                    <input type="password" id="newPassword" class="input" required>
+                                    <p class="text-sm text-muted">Minimum 8 characters</p>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="confirmPassword" class="label">Confirm New Password</label>
+                                    <input type="password" id="confirmPassword" class="input" required>
+                                </div>
+
+                                <button type="submit" id="passwordSubmitBtn" class="btn btn-primary btn-full">
+                                    Change Password
+                                </button>
+                            </form>
+
+                            <hr style="margin: 2rem 0;">
+
+                            <div class="space-y-4">
+                                <h3 class="font-bold">Two-Factor Authentication</h3>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <p class="font-bold">SMS Authentication</p>
+                                        <p class="text-sm text-muted">Receive codes via text message</p>
+                                    </div>
+                                    <label style="position: relative; display: inline-block; width: 60px; height: 34px;">
+                                        <input type="checkbox" id="smsAuth" style="opacity: 0; width: 0; height: 0;">
+                                        <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px;"></span>
+                                        <span style="position: absolute; content: ''; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%;"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Account Overview -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Account Overview</h2>
+                        <p class="card-description">Your account information and preferences</p>
+                    </div>
+                    <div class="card-content">
+                        <div class="grid grid-cols-3">
+                            <div style="text-align: center; padding: 1rem;">
+                                <div style="font-size: 2rem; margin-bottom: 0.5rem;">👤</div>
+                                <h3 class="font-bold">Customer Since</h3>
+                                <p class="text-muted">January 2020</p>
+                            </div>
+                            <div style="text-align: center; padding: 1rem;">
+                                <div style="font-size: 2rem; margin-bottom: 0.5rem;">💳</div>
+                                <h3 class="font-bold">Total Accounts</h3>
+                                <p class="text-muted" id="totalAccounts">3</p>
+                            </div>
+                            <div style="text-align: center; padding: 1rem;">
+                                <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔒</div>
+                                <h3 class="font-bold">Account Status</h3>
+                                <p class="text-success">Active & Verified</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="banking-api.js"></script>
+    <script>
+        // Check authentication
+        if (!isAuthenticated()) {
+            Redirect('login.html');
+        }
+
+        // Load profile data
+        function loadProfile() {
+            const user = getCurrentUser();
+            
+            if (user) {
+                document.getElementById('name').value = user.name || '';
+                document.getElementById('email').value = user.email || '';
+                document.getElementById('phone').value = user.phone || '';
+                document.getElementById('address').value = user.address || '';
+                document.getElementById('totalAccounts').textContent = user.accounts.length;
+            }
+        }
+
+        // Handle profile form submission
+        document.getElementById('profileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('profileSubmitBtn');
+            const formData = {
+                name: document.getElementById('name').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                phone: document.getElementById('phone').value.trim(),
+                address: document.getElementById('address').value.trim()
+            };
+
+            if (!formData.name || !formData.email || !formData.phone) {
+                showToast('Please fill in all required fields', 'error');
+                return;
+            }
+
+            // Show loading state
+            submitBtn.innerHTML = '<span class="spinner"></span>Updating Profile...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await SendRequest('/profile/update', formData);
+                
+                if (response.success) {
+                    showToast('Profile updated successfully!', 'success');
+                } else {
+                    throw new Error('Profile update failed');
+                }
+            } catch (error) {
+                showToast(error.message || 'Failed to update profile', 'error');
+            } finally {
+                submitBtn.innerHTML = 'Update Profile';
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Handle password form submission
+        document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const submitBtn = document.getElementById('passwordSubmitBtn');
+
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                showToast('Please fill in all password fields', 'error');
+                return;
+            }
+
+            if (newPassword.length < 8) {
+                showToast('New password must be at least 8 characters long', 'error');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showToast('New passwords do not match', 'error');
+                return;
+            }
+
+            // Show loading state
+            submitBtn.innerHTML = '<span class="spinner"></span>Changing Password...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await SendRequest('/profile/password', {
+                    currentPassword,
+                    newPassword
+                });
+                
+                if (response.success) {
+                    showToast('Password changed successfully!', 'success');
+                    document.getElementById('passwordForm').reset();
+                } else {
+                    throw new Error('Password change failed');
+                }
+            } catch (error) {
+                showToast(error.message || 'Failed to change password', 'error');
+            } finally {
+                submitBtn.innerHTML = 'Change Password';
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Handle 2FA toggle
+        document.getElementById('smsAuth').addEventListener('change', async (e) => {
+            const enabled = e.target.checked;
+            
+            try {
+                const response = await SendRequest('/profile/2fa', {
+                    smsEnabled: enabled
+                });
+                
+                if (response.success) {
+                    showToast(`SMS authentication ${enabled ? 'enabled' : 'disabled'}`, 'success');
+                } else {
+                    throw new Error('2FA update failed');
+                }
+            } catch (error) {
+                showToast(error.message || 'Failed to update 2FA settings', 'error');
+                // Revert checkbox state
+                e.target.checked = !enabled;
+            }
+        });
+
+        // Load profile on page load
+        loadProfile();
+    </script>
+
+    <style>
+        /* Toggle switch styles */
+        input[type="checkbox"]:checked + span {
+            background-color: var(--banking-primary);
+        }
+
+        input[type="checkbox"]:checked + span + span {
+            transform: translateX(26px);
+        }
+    </style>
+</body>
+</html>

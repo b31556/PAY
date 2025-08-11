@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureBank - Secure Online Banking</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="min-h-screen bg-gradient">
+        <div class="container">
+            <div class="text-center text-white">
+                <div class="logo-container">
+                    <div class="logo-icon">🏦</div>
+                    <h1 class="logo-title">SecureBank</h1>
+                    <p class="logo-subtitle">Redirecting...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="banking-api.js"></script>
+    <script>
+        // Redirect based on authentication status
+        if (isAuthenticated()) {
+            Redirect('dashboard.html');
+        } else {
+            Redirect('login.html');
+        }
+    </script>
+</body>
+</html>

@@ -142,98 +142,23 @@ class RequestContext:
     data: Union[dict, str]
     url: str
     session_id: str
-    client_enc_public: PublicKey
-    server_enc_private: PrivateKey
-    server_sign_private: SigningKey
-    client_sign_public: VerifyKey
 
 
 async def process_request(request: Request) -> RequestContext:
-    data = await request.json()
-    encrypted = bytes.fromhex(data["encrypted"])
-    signature = bytes.fromhex(data["signature"])
-    session_id = data.get("session_id")
-
-    if not session_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Missing session_id"
-        )
-    session = db_session.query(Session).filter_by(session_id=session_id).first()
-    if not session:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid session"
-        )
-    
-    # load base64 encoded keys from session
-    server_enc_private = base64.b64decode(session.server_enc_private)
-    client_enc_public = base64.b64decode(session.client_enc_public)
-    server_sign_private = base64.b64decode(session.server_sign_private)
-    client_sign_public = base64.b64decode(session.client_sign_public)
-
-    # load keys
-    server_enc_private = PrivateKey(server_enc_private)
-    client_enc_public = PublicKey(client_enc_public)
-    server_sign_private = SigningKey(server_sign_private)
-    client_sign_public = VerifyKey(client_sign_public)
-
     try:
-        decrypted = decrypt_with_box(encrypted, server_enc_private, client_enc_public)
-    except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail="Failed to decrypt message"
-        )
-
-    # Verify the signature
-    try:
-        client_sign_public.verify(decrypted, signature)
-    except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid signature"
-        )
-    
-    try:
-        payload = json.loads(decrypted.decode())
-        real_session_id = payload.get("session_id")
-        if not real_session_id or real_session_id != session_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Session ID manipulation detected"
-            )
-        data = payload.get("data")
-        if not isinstance(data, dict) and not isinstance(data, str):
-            raise HTTPException(
-                status_code=400,
-                detail="Missing data in payload"
-            )
-        url = payload.get("url")
-        if not url:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing URL in payload"
-            )
-        if url != request.url.path:
-            raise HTTPException(
-                status_code=400,
-                detail="URL manipulation detected"
-            )
+        data = await request.json()
     except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid payload"
-        )
+        data = await request.body()
+    url = str(request.url)
+    token = request.headers.get("Authorization")
+    if token:
+        token = token.replace("Bearer ", "")
+    session_id = db_session.query(Session).filter_by(token=token).first().id
 
     return RequestContext(
         data=data,
         url=url,
-        session_id=session_id,
-        client_enc_public=client_enc_public,
-        server_enc_private=server_enc_private,
-        server_sign_private=server_sign_private,
-        client_sign_public=client_sign_public
+        session_id=session_id
     )
 
 
