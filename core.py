@@ -39,3 +39,7 @@ def make_transaction(amount: float, merchant: User):
     db_session.commit()
     return transaction
     
+
+
+
+def make_account(db_session, user, account_type, account_title):

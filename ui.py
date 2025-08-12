@@ -15,7 +15,7 @@ from requests_cache import datetime
 import auth
 import core
 from database import db_session
-from models import User, Transaction, Card, AccessToken, OtpSecret, Session
+from models import Account, User, Transaction, Card, AccessToken, OtpSecret, Session
 from config import URL, PORT, DATABASE, SESSION_TIMEOUT, STEP1_TIMEOUT
 
 from encrpt import process_response, process_request, RequestContext
@@ -38,7 +38,7 @@ async def health_check():
 
 @app.post("/me")
 def get_me(ctx: RequestContext = Depends(process_request)):
-    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
+    user: User = ctx.session.user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return JSONResponse(content={"username": user.username, "email": user.email, "full_name": user.full_name})
@@ -46,10 +46,12 @@ def get_me(ctx: RequestContext = Depends(process_request)):
 
 @app.post("/balances")
 def get_balances(ctx: RequestContext = Depends(process_request)):
-    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
+    final_time = datetime.now()
+    time_now = datetime.now()
+    user: User = ctx.session.user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-
+    print(f"time taken: {datetime.now() - time_now}")
     response = {"total": 0, "accounts": [], "recent_transactions": [], "percent_compared_to_last_month": 0}
     accounts = user.accounts
     total=0
@@ -63,9 +65,11 @@ def get_balances(ctx: RequestContext = Depends(process_request)):
             "account_type": account.account_type,
         })
 
+    time_now = datetime.now()
     recent_incomes = db_session.query(Transaction).filter_by(receiver_id=user.id).order_by(Transaction.created_at.desc()).limit(10).all()
     recent_spendings = db_session.query(Transaction).filter_by(sender_id=user.id).order_by(Transaction.created_at.desc()).limit(10).all()
-
+    print(f"time taken: {datetime.now() - time_now}")
+    time_now = datetime.now()
     recent = recent_incomes + recent_spendings
     recent.sort(key=lambda x: x.created_at, reverse=True)
     recent = recent[:10]
@@ -78,15 +82,16 @@ def get_balances(ctx: RequestContext = Depends(process_request)):
         })
 
     last_month_balances = [json.loads(x.last_balances)[-1] for x in user.accounts if len(json.loads(x.last_balances)) > 1]
-
+    print(f"time taken: {datetime.now() - time_now}")
     response["total"] = total
     response["percent_compared_to_last_month"] = (sum(x.balance for x in user.accounts) - sum(last_month_balances)) / sum(last_month_balances) * 100 if sum(last_month_balances) != 0 else 0
+    print(f"final time taken: {datetime.now() - final_time}")
     return JSONResponse(content=response)
 
 
 @app.post("/accounts")
 def get_accounts(ctx: RequestContext = Depends(process_request)):
-    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
+    user: User = ctx.session.user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -119,3 +124,16 @@ def get_accounts(ctx: RequestContext = Depends(process_request)):
         })
 
     return JSONResponse(content=response)
+
+
+
+@app.post("/create-account")
+def create_account(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    account_data = ctx.data
+    new_account = make_account(db_session, user, account_data["account_type"], account_data["account_title"])
+
+    return JSONResponse(content={"message": "Account created successfully", "account": new_account.to_dict()})

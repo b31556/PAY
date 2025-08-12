@@ -12,6 +12,7 @@ import {
   DollarSign,
   ArrowRight,
   ArrowLeftRight,
+  CreditCard as CreditCardIcon,
   Wallet
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -27,8 +28,7 @@ interface Account {
   thm?: string;
   fillup_timeline?: string;
   kamat?: string;
-  kamet_this_year?: string;
-}
+  kamet_this_year?: string;}
 
 interface Card {
   card_number: string;
@@ -51,7 +51,6 @@ interface Transaction {
   amount: number;
   created_at: string;
   title?: string;
-  account_uuid?: string; // ezt érdemes hozzáadni, ha lehetséges
 }
 
 interface User {
@@ -67,7 +66,7 @@ interface BalanceData {
   percent_compared_to_last_month: number;
 }
 
-const Dashboard = () => {
+  const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [balanceData, setBalanceData] = useState<BalanceData | null>(null);
   const [accountsData, setAccountsData] = useState<AccountsData | null>(null);
@@ -79,11 +78,9 @@ const Dashboard = () => {
       try {
         const userResponse = await getUserDetails();
         const balanceResponse = await getBalances();
-        const accountsResponse = await getAccounts();
         
         setUser(userResponse as User);
         setBalanceData(balanceResponse as BalanceData);
-        setAccountsData(accountsResponse as AccountsData);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -119,8 +116,8 @@ const Dashboard = () => {
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-32 bg-gray-200 animate-pulse rounded"></div>
             ))}
-          </div>
-        </div>
+              </div>
+            </div>
       </BankingLayout>
     );
   }
@@ -177,56 +174,7 @@ const Dashboard = () => {
           ))}
         </div>
         
-        {/* Bankkártyák megjelenítése */}
-        {accountsData && accountsData.cards.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Bankkártyáim</CardTitle>
-              <CardDescription>Virtuális és fizikai kártyák áttekintése</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {accountsData.cards.map((card, index) => {
-                  const linkedAccount = accountsData.accounts.find(a => a.uuid === card.account_uuid);
-                  return (
-                    <div key={card.card_number ?? index} className="relative">
-                      <div 
-                        className={`
-                          rounded-xl overflow-hidden shadow-lg
-                          bg-gradient-to-br from-gray-900 via-banking-primary to-black
-                          relative flex flex-col justify-between p-4
-                          h-[140px] transform transition-all hover:scale-105 cursor-pointer
-                        `}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="text-white opacity-80 text-xs">
-                            {card.card_type === "credit" ? "Hitelkártya" : "Bankkártya"}
-                          </div>
-                          <CreditCard className="w-6 h-6 text-white" />
-                        </div>
-                        
-                        <div className="text-white font-mono text-base tracking-wider">
-                          {card.card_number}
-                        </div>
-                        
-                        <div className="flex justify-between items-end">
-                          <div className="text-white text-xs">
-                            <div>{card.card_holder}</div>
-                            <div>{card.expiration_date}</div>
-                          </div>
-                          
-                          <div className="text-white text-xs">
-                            <div>{linkedAccount ? formatCurrency(linkedAccount.balance, linkedAccount.currency) : ""}</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+      </div>
 
         {/* Quick Actions */}
         <Card>
@@ -238,32 +186,83 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Link to="/transfer">
                 <Button variant="outline" className="w-full h-20 flex-col gap-2">
-                  <ArrowRight className="w-6 h-6" />
-                  Átutalás
+                  <ArrowLeftRight className="w-6 h-6" />
+                  Pénz küldése
                 </Button>
               </Link>
-              <Link to="/deposit">
+              <Link to="/bills">
                 <Button variant="outline" className="w-full h-20 flex-col gap-2">
                   <DollarSign className="w-6 h-6" />
-                  Befizetés
+                  Számlák fizetése
+                </Button>
+              </Link>
+              <Link to="/accounts">
+                <Button variant="outline" className="w-full h-20 flex-col gap-2">
+                  <CreditCard className="w-6 h-6" />
+                  Számlák kezelése
                 </Button>
               </Link>
               <Link to="/transactions">
                 <Button variant="outline" className="w-full h-20 flex-col gap-2">
-                  <ArrowLeftRight className="w-6 h-6" />
-                  Tranzakciók
-                </Button>
-              </Link>
-              <Link to="/cards">
-                <Button variant="outline" className="w-full h-20 flex-col gap-2">
-                  <CreditCard className="w-6 h-6" />
-                  Kártyák
+                  <TrendingUp className="w-6 h-6" />
+                  Tranzakció előzmények
                 </Button>
               </Link>
             </div>
           </CardContent>
         </Card>
-      </div>
+
+        {/* Recent Transactions */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Legutóbbi tranzakciók</CardTitle>
+                <CardDescription>Legfrissebb számlamozgások</CardDescription>
+              </div>
+              <Link to="/transactions">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  Összes megtekintése
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {balanceData?.recent_transactions.map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between p-4 rounded-lg border">
+                  <div className="flex items-center gap-4">
+                    <div className={`p-2 rounded-full ${
+                      transaction.type === 'income' 
+                        ? 'bg-success/10 text-success' 
+                        : 'bg-destructive/10 text-destructive'
+                    }`}>
+                      {transaction.type === 'income' ? 
+                        <ArrowDownLeft className="w-4 h-4" /> : 
+                        <ArrowUpRight className="w-4 h-4" />
+                      }
+                    </div>
+                    <div>
+                      <p className="font-medium">{transaction.title || "Transaction"}</p>
+                      <p className="text-sm text-muted-foreground">{formatDate(transaction.created_at)}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-medium ${
+                      transaction.type === 'income' ? 'text-success' : 'text-destructive'
+                    }`}>
+                      {transaction.type === 'income' ? '+' : ''}{formatCurrency(transaction.amount)}
+                    </p>
+                    <Badge variant="secondary" className="text-xs">
+                      {balanceData?.accounts.find(acc => acc.uuid === transaction.id?.split('-')[1])?.account_type || "Account"}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
     </BankingLayout>
   );
 };

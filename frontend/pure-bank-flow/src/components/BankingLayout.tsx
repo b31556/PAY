@@ -31,7 +31,6 @@ const BankingLayout = ({ children }: BankingLayoutProps) => {
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Accounts", href: "/accounts", icon: CreditCard },
-    { name: "Cards", href: "/cards", icon: CreditCard },
     { name: "Transfer", href: "/transfer", icon: ArrowLeftRight },
     { name: "Pay Bills", href: "/bills", icon: Receipt },
     { name: "Profile", href: "/profile", icon: User },
@@ -47,9 +46,7 @@ const BankingLayout = ({ children }: BankingLayoutProps) => {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center gap-3 px-6 py-6 border-b border-sidebar-border">
-            <div className="flex items-center justify-center w-10 h-10 bg-banking-primary rounded-lg">
-              <Building2 className="w-6 h-6 text-white" />
-            </div>
+            <img src="/kbp.png" alt="Logo" className="w-8 h-8" />
             <h1 className="text-xl font-bold text-sidebar-foreground">SecureBank</h1>
           </div>
 
@@ -125,7 +122,7 @@ const BankingLayout = ({ children }: BankingLayoutProps) => {
               <Menu className="w-5 h-5" />
             </Button>
             <div className="flex items-center gap-2">
-              <Building2 className="w-6 h-6 text-banking-primary" />
+              <img src="/kbp.png" alt="Logo" className="w-8 h-8" />
               <span className="font-bold text-lg">SecureBank</span>
             </div>
             <div className="w-10" /> {/* Spacer */}

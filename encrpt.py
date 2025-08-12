@@ -141,10 +141,11 @@ def decrypt_with_box(data: bytes, server_enc_private, client_enc_public) -> byte
 class RequestContext:
     data: Union[dict, str]
     url: str
-    session_id: str
+    session: Session
 
 
 async def process_request(request: Request) -> RequestContext:
+    
     try:
         data = await request.json()
     except json.JSONDecodeError:
@@ -153,12 +154,13 @@ async def process_request(request: Request) -> RequestContext:
     token = request.headers.get("Authorization")
     if token:
         token = token.replace("Bearer ", "")
-    session_id = db_session.query(Session).filter_by(token=token).first().id
-
+    time_now = datetime.now()
+    session = db_session.query(Session).filter_by(token=token).first()
+    print(f"f db time taken: {datetime.now() - time_now}")
     return RequestContext(
         data=data,
         url=url,
-        session_id=session_id
+        session=session
     )
 
 
