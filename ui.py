@@ -14,7 +14,7 @@ from fastapi.encoders import jsonable_encoder
 from requests_cache import datetime
 import auth
 import core
-from database import db_session
+from database import get_db_session
 from models import Account, User, Transaction, Card, AccessToken, OtpSecret, Session
 from config import URL, PORT, DATABASE, SESSION_TIMEOUT, STEP1_TIMEOUT
 
@@ -38,7 +38,7 @@ async def health_check():
 
 @app.post("/me")
 def get_me(ctx: RequestContext = Depends(process_request)):
-    user: User = ctx.session.user
+    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return JSONResponse(content={"username": user.username, "email": user.email, "full_name": user.full_name})
@@ -46,9 +46,7 @@ def get_me(ctx: RequestContext = Depends(process_request)):
 
 @app.post("/balances")
 def get_balances(ctx: RequestContext = Depends(process_request)):
-    final_time = datetime.now()
-    time_now = datetime.now()
-    user: User = ctx.session.user
+    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     print(f"time taken: {datetime.now() - time_now}")
@@ -91,7 +89,7 @@ def get_balances(ctx: RequestContext = Depends(process_request)):
 
 @app.post("/accounts")
 def get_accounts(ctx: RequestContext = Depends(process_request)):
-    user: User = ctx.session.user
+    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 

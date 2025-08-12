@@ -7,6 +7,16 @@ from config import DATABASE
 
 engine = create_engine(DATABASE, echo=True)
 Session = sessionmaker(bind=engine)
-db_session = Session()
+
+def get_db_session():
+    session = Session()
+    try:
+        yield session
+        session.commit()
+    except:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 Base.metadata.create_all(engine)
