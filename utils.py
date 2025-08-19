@@ -24,6 +24,10 @@ def make_transaction_title(tx: Transaction) -> str:
 
     method_display = METHOD_DISPLAY.get(method_key, tx.completed_via)
 
+    if sender == receiver:
+        # If sender and receiver are the same, it's a self-transfer
+        return f"Transfer to self: {tx.sender_account.bank_account_number} to {tx.receiver_account.bank_account_number}"
+
     # Determine receiver info
     if receiver:
         receiver_name = receiver.full_name

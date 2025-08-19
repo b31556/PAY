@@ -171,7 +171,7 @@ def start_transaction(db_session, user, amount, from_account_uuid, to_account_uu
             amount=amount,
             memo=memo,
             created_at=datetime.datetime.now(),
-            status="created",
+            state="created",
             transaction_code=transaction_code,
             transaction_secret=transaction_secret
         )
@@ -179,7 +179,7 @@ def start_transaction(db_session, user, amount, from_account_uuid, to_account_uu
         db_session.commit()
         return transaction
 
-    elif transaction_type == "betweenmy":
+    elif transaction_type == "between_accounts":
         from_account = db_session.query(Account).filter_by(uuid=from_account_uuid, user_id=user.id).first()
         if not from_account:
             raise HTTPException(status_code=404, detail="From account not found")
@@ -199,7 +199,7 @@ def start_transaction(db_session, user, amount, from_account_uuid, to_account_uu
             amount=amount,
             memo=memo,
             created_at=datetime.datetime.now(),
-            status="created",
+            state="created",
             transaction_code=transaction_code,
             transaction_secret=transaction_secret
         )
@@ -232,7 +232,7 @@ def finalize_transaction(transaction: Transaction, db_session) -> Transaction:
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Invalid transaction amount")
     
-    if transaction.status != "created":
+    if transaction.state != "created":
         raise HTTPException(status_code=400, detail="Transaction is not in created state")
 
     if amount > config.BIG_TRANSACTION_LIMIT:
@@ -251,8 +251,8 @@ def finalize_transaction(transaction: Transaction, db_session) -> Transaction:
 
     sender_account.balance -= amount
     receiver_account.balance += amount
-
-    transaction.status = "completed"
+    transaction.completed_at = datetime.datetime.now()
+    transaction.state = "completed"
 
     db_session.commit()
     return transaction

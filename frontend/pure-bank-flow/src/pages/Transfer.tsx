@@ -19,6 +19,14 @@ import {
   Building
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 
 // Interface for account data structure
 interface BankAccount {
@@ -68,6 +76,8 @@ const Transfer = () => {
   const [confirmationRequired, setConfirmationRequired] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState("");
   const [transactionStatus, setTransactionStatus] = useState<"idle" | "pending" | "confirmed" | "failed">("idle");
+  const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
+  const [pendingTransaction, setPendingTransaction] = useState<any>(null);
 
   // Fetch user accounts from API
   useEffect(() => {
@@ -243,30 +253,9 @@ const Transfer = () => {
             description: "Please enter the confirmation code sent to your device",
           });
         } else {
-          // For internal transfers, no confirmation needed
-          toast({
-            title: "Transfer Successful",
-            description: `$${formData.amount} transferred successfully`,
-          });
-          
-          setTransactionStatus("confirmed");
-          
-          // Update account balances in the UI
-          const amount = parseFloat(formData.amount);
-          setAccounts(prev => prev.map(account => {
-            if (account.uuid === formData.fromAccount) {
-              return { ...account, balance: account.balance - amount, available_balance: account.available_balance - amount };
-            } else if (account.uuid === formData.toAccount) {
-              return { ...account, balance: account.balance + amount, available_balance: account.available_balance + amount };
-            }
-            return account;
-          }));
-          
-          // Reset form after a short delay
-          setTimeout(() => {
-            resetForm();
-            setTransactionStatus("idle");
-          }, 3000);
+          // For internal transfers, show confirmation dialog
+          setPendingTransaction(response.data);
+          setShowConfirmationDialog(true);
         }
       }
     } catch (error) {
@@ -276,6 +265,59 @@ const Transfer = () => {
         description: error instanceof Error ? error.message : "Failed to process transfer",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleConfirmInternalTransfer = async () => {
+    if (!transactionId) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const confirmPayload = {
+        transaction_id: transactionId
+        // Belső átutalásoknál nem kell confirmation_code
+      };
+      
+      const response = await SendRequest("/confirm-transaction", confirmPayload);
+      
+      if (response.success) {
+        setTransactionStatus("confirmed");
+        toast({
+          title: "Transfer Completed",
+          description: "Your transfer has been successfully processed",
+        });
+        
+        // Update account balances in UI
+        const amount = parseFloat(formData.amount);
+        setAccounts(prev => prev.map(account => {
+          if (account.uuid === formData.fromAccount) {
+            return { ...account, balance: account.balance - amount, available_balance: account.available_balance - amount };
+          } else if (account.uuid === formData.toAccount) {
+            return { ...account, balance: account.balance + amount, available_balance: account.available_balance + amount };
+          }
+          return account;
+        }));
+        
+        // Reset all states after a short delay
+        setTimeout(() => {
+          resetForm();
+          setTransactionId(null);
+          setShowConfirmationDialog(false);
+          setPendingTransaction(null);
+          setTransactionStatus("idle");
+        }, 3000);
+      }
+    } catch (error) {
+      setTransactionStatus("failed");
+      toast({
+        title: "Confirmation Failed",
+        description: error instanceof Error ? error.message : "Failed to confirm transfer",
+        variant: "destructive",
+      });
+      setShowConfirmationDialog(false);
     } finally {
       setIsLoading(false);
     }
@@ -388,16 +430,16 @@ const Transfer = () => {
                             <span>Between My Accounts</span>
                           </div>
                         </SelectItem>
-                        <SelectItem value="external">
-                          <div className="flex items-center">
-                            <Building className="w-4 h-4 mr-2 text-banking-secondary" />
-                            <span>To External Account</span>
-                          </div>
-                        </SelectItem>
                         <SelectItem value="wire">
                           <div className="flex items-center">
+                            <Building className="w-4 h-4 mr-2 text-banking-secondary" />
+                            <span>To Bank Account</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="external">
+                          <div className="flex items-center">
                             <Globe className="w-4 h-4 mr-2 text-banking-warning" />
-                            <span>Wire Transfer</span>
+                            <span>Interbank Transfer</span>
                           </div>
                         </SelectItem>
                       </SelectContent>
@@ -728,6 +770,86 @@ const Transfer = () => {
           </div>
         </div>
       </div>
+
+      {/* Belső átutalás megerősítő dialógus */}
+      <Dialog open={showConfirmationDialog} onOpenChange={setShowConfirmationDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Megerősíti az átutalást?</DialogTitle>
+            <DialogDescription>
+              Kérjük, ellenőrizze az átutalás részleteit a folytatás előtt.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-3">
+            {pendingTransaction && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Küldő számla</p>
+                    <p className="font-medium">{getAccountName(formData.fromAccount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Fogadó számla</p>
+                    <p className="font-medium">{getAccountName(formData.toAccount)}</p>
+                  </div>
+                </div>
+                
+                <div className="bg-muted p-4 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm font-medium">Összeg</p>
+                    <p className="text-xl font-bold text-banking-primary">${formData.amount}</p>
+                  </div>
+                  {formData.memo && (
+                    <div className="mt-2 pt-2 border-t border-border/50">
+                      <p className="text-sm font-medium">Közlemény</p>
+                      <p className="text-sm text-muted-foreground">{formData.memo}</p>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <p className="text-sm text-amber-800">
+                    A megerősítés után az átutalás azonnal végrehajtásra kerül.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter className="flex-col sm:flex-row sm:justify-between sm:space-x-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowConfirmationDialog(false);
+                setTransactionId(null);
+                setPendingTransaction(null);
+                setTransactionStatus("idle");
+              }}
+            >
+              Mégsem
+            </Button>
+            <Button 
+              type="button"
+              onClick={handleConfirmInternalTransfer}
+              className="bg-gradient-to-r from-banking-primary to-banking-secondary"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="flex items-center">
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Feldolgozás...
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Átutalás megerősítése
+                </div>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </BankingLayout>
   );
 };

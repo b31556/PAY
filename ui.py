@@ -73,12 +73,18 @@ def get_balances(ctx: RequestContext = Depends(process_request)):
     recent.sort(key=lambda x: x.created_at, reverse=True)
     recent = recent[:10]
     for tx in recent:
-        response["recent_transactions"].append({
-            "type": "income" if tx in recent_incomes else "spending",
-            "amount": tx.amount,
-            "created_at": str(tx.created_at),
-            "title": make_transaction_title(tx),
-        })
+        if not tx:
+            continue
+        if tx.state == "completed":
+            response["recent_transactions"].append({
+                "type": "income" if tx in recent_incomes else "spending",
+                "amount": tx.amount,
+                "created_at": str(tx.created_at),
+                "title": make_transaction_title(tx),
+            })
+            if tx in recent_spendings and tx in recent_incomes:
+                recent_spendings[recent_spendings.index(tx)] = None
+                recent_incomes[recent_incomes.index(tx)] = None
 
     try:
         last_month_balances = [json.loads(x.last_balances)[-1] for x in user.accounts if len(json.loads(x.last_balances)) > 1]
@@ -219,17 +225,17 @@ def reveal_full_card_number(ctx: RequestContext = Depends(process_request)):
     return JSONResponse(content={"full_card_number": formatted})
 
 
-@app.post("/make-transaction")
-def make_transaction(ctx: RequestContext = Depends(process_request)):
+@app.post("/start-transaction")
+def start_transaction(ctx: RequestContext = Depends(process_request)):
     user: User = ctx.session.user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     transaction_data = ctx.data
-    transaction_type = transaction_data.get("type") # wire or betweenmy or external
+    transaction_type = transaction_data.get("transfer_type") # wire or between_accounts or external
     amount = transaction_data.get("amount")
-    from_account_uuid = transaction_data.get("from_account_uuid")
-    to_account_uuid = transaction_data.get("to_account_uuid") # optional
+    from_account_uuid = transaction_data.get("from_account")
+    to_account_uuid = transaction_data.get("to_account") # optional
     to_account_number = transaction_data.get("to_account_number") # optional
     memo = transaction_data.get("memo") # optional
 
@@ -237,7 +243,7 @@ def make_transaction(ctx: RequestContext = Depends(process_request)):
         tx = core.start_transaction(
             ctx.db_session, user, amount, from_account_uuid, to_account_uuid, to_account_number, transaction_type, memo
         )
-    elif transaction_type == "betweenmy":
+    elif transaction_type == "between_accounts":
         tx = core.start_transaction(
             ctx.db_session, user, amount, from_account_uuid, to_account_uuid, to_account_number, transaction_type, memo
         )
@@ -250,9 +256,9 @@ def make_transaction(ctx: RequestContext = Depends(process_request)):
     to_account = tx.receiver_account
     amount = tx.amount
     memo = tx.memo
-    transfer_type = tx.transaction_type
+    transfer_type = transaction_type                   
 
-    return JSONResponse(content={"message": "Transaction created successfully", "transaction_id": tx.transaction_code, "from_account": from_account, "to_account": to_account, "amount": amount, "memo": memo, "transfer_type": transfer_type})
+    return JSONResponse(content={"message": "Transaction created successfully", "transaction_id": tx.transaction_code, "from_account": from_account.uuid, "to_account": to_account.uuid, "amount": amount, "memo": memo, "transfer_type": transfer_type})
 
 
 
@@ -266,11 +272,11 @@ def confirm_transaction(ctx: RequestContext = Depends(process_request)):
     transaction_id = confirmation_data.get("transaction_id")
     confirmation_code = confirmation_data.get("confirmation_code")
 
-    tx: Transaction = ctx.db_session.query(Transaction).filter_by(id=transaction_id, user_id=user.id).first()
+    tx: Transaction = ctx.db_session.query(Transaction).filter_by(transaction_code=transaction_id, sender_id=user.id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
-    if tx.status != "created":
+    if tx.state != "created":
         raise HTTPException(status_code=400, detail="Transaction is not waiting for confirmation")
 
     if tx.sender_id == tx.receiver_id:
@@ -282,4 +288,4 @@ def confirm_transaction(ctx: RequestContext = Depends(process_request)):
     core.finalize_transaction(tx, ctx.db_session)
     ctx.db_session.commit()
 
-    return JSONResponse(content={"message": "Completed the transaction successfully", "transaction_id": tx.id})
+    return JSONResponse(content={"message": "Completed the transaction successfully", "transaction_id": tx.transaction_code})
