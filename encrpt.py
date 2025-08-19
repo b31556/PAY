@@ -1,5 +1,5 @@
 import dataclasses
-from database import db_session
+from database import get_db_session
 from models import User, OtpSecret, AccessToken, Transaction, Card, SigKey, Session, UserSrp
 from fastapi import HTTPException, status
 import pyotp
@@ -142,10 +142,11 @@ class RequestContext:
     data: Union[dict, str]
     url: str
     session: Session
+    db_session: any
 
 
 async def process_request(request: Request) -> RequestContext:
-    
+    db_session = next(get_db_session())
     try:
         data = await request.json()
     except json.JSONDecodeError:
@@ -160,7 +161,8 @@ async def process_request(request: Request) -> RequestContext:
     return RequestContext(
         data=data,
         url=url,
-        session=session
+        session=session,
+        db_session=db_session
     )
 
 

@@ -14,17 +14,17 @@ class Transaction(Base):
     transaction_code = Column(String(255), unique=True, nullable=False)
     amount = Column(Integer, nullable=False)
     sender_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    sender_card_id = Column(Integer, ForeignKey('cards.id'), nullable=True)
     sender_account_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)
     receiver_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    receiver_card_id = Column(Integer, ForeignKey('cards.id'), nullable=True)
     receiver_account_id = Column(Integer, ForeignKey('accounts.id'), nullable=True)
     state = Column(String(50), nullable=False, default="created")
-    watch_code = Column(String(255), nullable=False)
+    watch_code = Column(String(255), nullable=True)
     completed_via = Column(String(50), nullable=True)  # "link" "qrcode" "manual" "pos" "atm"
+    memo = Column(String(255), nullable=True)
 
     sender = relationship("User", back_populates="sells", foreign_keys=[sender_id])
     receiver = relationship("User", back_populates="buys", foreign_keys=[receiver_id])
-    receiver_card = relationship("Card", back_populates="buys", foreign_keys=[receiver_card_id])
     sender_account = relationship("Account", back_populates="sells", foreign_keys=[sender_account_id])
     receiver_account = relationship("Account", back_populates="buys", foreign_keys=[receiver_account_id])
 
@@ -89,6 +89,7 @@ class Account(Base):
 class Card(Base):
     __tablename__ = 'cards'
     id = Column(Integer, primary_key=True)
+    uuid = Column(String(255), unique=True, nullable=False, default=str(uuid.uuid4()))
     card_number = Column(String(255), unique=True, nullable=False)
     card_holder = Column(String(255), nullable=False)
     expiration_date = Column(Date, nullable=False)
@@ -98,10 +99,10 @@ class Card(Base):
     pincode = Column(String(50), nullable=False)
     account_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)
     status = Column(String(50), nullable=False)
+    created_at = Column(DateTime, nullable=False)
 
     account = relationship("Account", back_populates="cards")
     user = relationship("User", back_populates="cards")
-    buys = relationship("Transaction", back_populates="receiver_card", foreign_keys='Transaction.receiver_card_id')
 
 # ----
 

@@ -226,6 +226,78 @@ export const getBillers = async () => {
   }
 };
 
+
+// Create a new bank account
+export const createAccount = async (accountType: string, accountTitle: string) => {
+  try {
+    const response = await SendRequest("/create-account", {
+      account_type: accountType.toLowerCase(),
+      account_title: accountTitle
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error creating account:", error);
+    throw error;
+  }
+};
+
+// Toggle card lock status
+export const toggleCardLock = async (cardUuid: string) => {
+  try {
+    const response = await SendRequest("/toggle-card-lock", {
+      card_uuid: cardUuid
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error toggling card lock:", error);
+    throw error;
+  }
+};
+
+// Update card settings
+export const updateCardSettings = async (cardUuid: string, connectedAccountUuid: string, pincode: string) => {
+  try {
+    const response = await SendRequest("/set-card-settings", {
+      card_uuid: cardUuid,
+      settings: {
+        connected_account_uuid: connectedAccountUuid,
+        pincode: pincode
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error updating card settings:", error);
+    throw error;
+  }
+};
+
+// Create a new card for the user
+export const makeCard = async (connectedAccountUuid: string, pincode: string) => {
+  try {
+    const response = await SendRequest("/make-card", {
+      connected_account_uuid: connectedAccountUuid,
+      pincode: pincode
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error creating new card:", error);
+    throw error;
+  }
+};
+
+// Reveal the full card number
+export const revealFullCardNumber = async (cardUuid: string) => {
+  try {
+    const response = await SendRequest("/reveal-full-card-number", {
+      card_uuid: cardUuid
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error revealing full card number:", error);
+    throw error;
+  }
+};
+
 // API Endpoint Examples - Complete Banking System
 // ================================================
 

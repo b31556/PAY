@@ -13,7 +13,7 @@ import os
 import json
 import pyotp
 
-from database import db_session
+
 
 from models import User, OtpSecret, AccessToken, SigKey, Session, UserSrp
 

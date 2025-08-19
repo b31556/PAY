@@ -7,26 +7,120 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BankingLayout from "@/components/BankingLayout";
 import { getCurrentUser, SendRequest } from "@/lib/banking-api";
-import { ArrowRight, Shield, Clock, CheckCircle } from "lucide-react";
+import { 
+  ArrowRight, 
+  Shield, 
+  Clock, 
+  CheckCircle, 
+  AlertCircle, 
+  RefreshCw,
+  Users,
+  Globe,
+  Building
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+
+// Interface for account data structure
+interface BankAccount {
+  uuid: string;
+  bank_account_number: string;
+  holder_name: string;
+  balance: number;
+  currency: string;
+  account_type: string;
+  available_balance: number;
+  thm: string;
+  fillup_timeline: string;
+  kamat: string;
+  kamet_this_year: string;
+  memo: string;
+}
+
+interface Card {
+  card_number: string;
+  card_holder: string;
+  expiration_date: string;
+  cvv: string;
+  card_type: string;
+  account_uuid: string;
+  is_locked: boolean;
+}
+
+interface AccountsResponse {
+  accounts: BankAccount[];
+  cards: Card[];
+}
 
 const Transfer = () => {
   const [user, setUser] = useState<any>(null);
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
   const [formData, setFormData] = useState({
     fromAccount: "",
     toAccount: "",
+    toAccountNumber: "",
     amount: "",
     memo: "",
-    transferType: "internal"
+    transferType: "between_accounts"
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [transactionId, setTransactionId] = useState<string | null>(null);
+  const [confirmationRequired, setConfirmationRequired] = useState(false);
+  const [confirmationCode, setConfirmationCode] = useState("");
+  const [transactionStatus, setTransactionStatus] = useState<"idle" | "pending" | "confirmed" | "failed">("idle");
 
+  // Fetch user accounts from API
   useEffect(() => {
-    setUser(getCurrentUser());
+    const fetchAccounts = async () => {
+      setIsLoadingAccounts(true);
+      try {
+        console.log("Fetching accounts...");
+        const response = await SendRequest("/accounts");
+        if (response.success && response.data && response.data.accounts) {
+          console.log("Accounts loaded:", response.data.accounts);
+          setAccounts(response.data.accounts);
+        } else {
+          console.error("Invalid accounts data:", response);
+          toast({
+            title: "Error Loading Accounts",
+            description: "Failed to load account data",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching accounts:", error);
+        toast({
+          title: "Error Loading Accounts",
+          description: error instanceof Error ? error.message : "Failed to load accounts",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingAccounts(false);
+      }
+    };
+
+    fetchAccounts();
   }, []);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear toAccount or toAccountNumber when transfer type changes
+    if (field === "transferType") {
+      if (value === "between_accounts") {
+        setFormData(prev => ({ 
+          ...prev, 
+          [field]: value,
+          toAccountNumber: "",
+        }));
+      } else {
+        setFormData(prev => ({ 
+          ...prev, 
+          [field]: value,
+          toAccount: "",
+        }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -37,32 +131,52 @@ const Transfer = () => {
   };
 
   const getAccountBalance = (accountId: string) => {
-    const account = user?.accounts?.find((acc: any) => acc.id === accountId);
-    return account ? account.balance : 0;
+    const account = accounts.find(acc => acc.uuid === accountId);
+    return account ? account.available_balance : 0;
   };
 
   const getAccountName = (accountId: string) => {
-    const account = user?.accounts?.find((acc: any) => acc.id === accountId);
-    return account ? `${account.type} ${account.accountNumber}` : '';
+    const account = accounts.find(acc => acc.uuid === accountId);
+    return account ? `${account.memo} - ${account.bank_account_number}` : '';
   };
 
   const validateTransfer = () => {
-    if (!formData.fromAccount || !formData.toAccount) {
+    if (!formData.fromAccount) {
       toast({
         title: "Invalid Transfer",
-        description: "Please select both source and destination accounts",
+        description: "Please select a source account",
         variant: "destructive",
       });
       return false;
     }
 
-    if (formData.fromAccount === formData.toAccount) {
-      toast({
-        title: "Invalid Transfer",
-        description: "Source and destination accounts must be different",
-        variant: "destructive",
-      });
-      return false;
+    if (formData.transferType === "between_accounts") {
+      if (!formData.toAccount) {
+        toast({
+          title: "Invalid Transfer",
+          description: "Please select a destination account",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      if (formData.fromAccount === formData.toAccount) {
+        toast({
+          title: "Invalid Transfer",
+          description: "Source and destination accounts must be different",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } else {
+      if (!formData.toAccountNumber) {
+        toast({
+          title: "Invalid Transfer",
+          description: "Please enter a valid destination account number",
+          variant: "destructive",
+        });
+        return false;
+      }
     }
 
     const amount = parseFloat(formData.amount);
@@ -94,26 +208,69 @@ const Transfer = () => {
     if (!validateTransfer()) return;
     
     setIsLoading(true);
+    setTransactionStatus("pending");
 
     try {
-      await SendRequest("/transfer", {
-        fromAccount: getAccountName(formData.fromAccount),
-        toAccount: getAccountName(formData.toAccount),
-        amount: formData.amount,
-        memo: formData.memo,
-        type: formData.transferType
-      });
+      // Prepare request payload based on transfer type
+      const payload = formData.transferType === "between_accounts" 
+        ? {
+            from_account: formData.fromAccount,
+            to_account: formData.toAccount,
+            amount: parseFloat(formData.amount),
+            memo: formData.memo,
+            transfer_type: formData.transferType
+          }
+        : {
+            from_account: formData.fromAccount,
+            to_account_number: formData.toAccountNumber,
+            amount: parseFloat(formData.amount),
+            memo: formData.memo,
+            transfer_type: formData.transferType
+          };
 
-      // Reset form
-      setFormData({
-        fromAccount: "",
-        toAccount: "",
-        amount: "",
-        memo: "",
-        transferType: "internal"
-      });
-
+      // Send request to start transaction
+      const response = await SendRequest("/start-transaction", payload);
+      
+      if (response.success && response.data) {
+        // Store transaction ID for confirmation if needed
+        setTransactionId(response.data.transaction_id);
+        
+        // Check if confirmation is required for non-internal transfers
+        if (formData.transferType !== "between_accounts") {
+          setConfirmationRequired(true);
+          toast({
+            title: "Confirmation Required",
+            description: "Please enter the confirmation code sent to your device",
+          });
+        } else {
+          // For internal transfers, no confirmation needed
+          toast({
+            title: "Transfer Successful",
+            description: `$${formData.amount} transferred successfully`,
+          });
+          
+          setTransactionStatus("confirmed");
+          
+          // Update account balances in the UI
+          const amount = parseFloat(formData.amount);
+          setAccounts(prev => prev.map(account => {
+            if (account.uuid === formData.fromAccount) {
+              return { ...account, balance: account.balance - amount, available_balance: account.available_balance - amount };
+            } else if (account.uuid === formData.toAccount) {
+              return { ...account, balance: account.balance + amount, available_balance: account.available_balance + amount };
+            }
+            return account;
+          }));
+          
+          // Reset form after a short delay
+          setTimeout(() => {
+            resetForm();
+            setTransactionStatus("idle");
+          }, 3000);
+        }
+      }
     } catch (error) {
+      setTransactionStatus("failed");
       toast({
         title: "Transfer Failed",
         description: error instanceof Error ? error.message : "Failed to process transfer",
@@ -124,7 +281,76 @@ const Transfer = () => {
     }
   };
 
-  const eligibleAccounts = user?.accounts?.filter((acc: any) => acc.type !== "Credit") || [];
+  const handleConfirmTransaction = async () => {
+    if (!transactionId) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const confirmPayload = {
+        transaction_id: transactionId,
+        confirmation_code: confirmationCode
+      };
+      
+      const response = await SendRequest("/confirm-transaction", confirmPayload);
+      
+      if (response.success) {
+        setTransactionStatus("confirmed");
+        toast({
+          title: "Transfer Completed",
+          description: "Your transfer has been successfully processed",
+        });
+        
+        // Update account balance for external transfers
+        const amount = parseFloat(formData.amount);
+        setAccounts(prev => prev.map(account => {
+          if (account.uuid === formData.fromAccount) {
+            return { 
+              ...account, 
+              balance: account.balance - amount, 
+              available_balance: account.available_balance - amount 
+            };
+          }
+          return account;
+        }));
+        
+        // Reset all states after a short delay
+        setTimeout(() => {
+          resetForm();
+          setConfirmationRequired(false);
+          setConfirmationCode("");
+          setTransactionId(null);
+          setTransactionStatus("idle");
+        }, 3000);
+      }
+    } catch (error) {
+      setTransactionStatus("failed");
+      toast({
+        title: "Confirmation Failed",
+        description: error instanceof Error ? error.message : "Failed to confirm transfer",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      fromAccount: "",
+      toAccount: "",
+      toAccountNumber: "",
+      amount: "",
+      memo: "",
+      transferType: "between_accounts"
+    });
+  };
+
+  // Filter accounts to show only eligible ones (exclude credit accounts)
+  const eligibleAccounts = accounts.filter(acc => acc.account_type !== "credit");
+  
+  console.log("Current accounts:", accounts);
+  console.log("Eligible accounts:", eligibleAccounts);
 
   return (
     <BankingLayout>
@@ -156,9 +382,24 @@ const Transfer = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="internal">Between My Accounts</SelectItem>
-                        <SelectItem value="external">To External Account</SelectItem>
-                        <SelectItem value="wire">Wire Transfer</SelectItem>
+                        <SelectItem value="between_accounts">
+                          <div className="flex items-center">
+                            <Users className="w-4 h-4 mr-2 text-banking-primary" />
+                            <span>Between My Accounts</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="external">
+                          <div className="flex items-center">
+                            <Building className="w-4 h-4 mr-2 text-banking-secondary" />
+                            <span>To External Account</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="wire">
+                          <div className="flex items-center">
+                            <Globe className="w-4 h-4 mr-2 text-banking-warning" />
+                            <span>Wire Transfer</span>
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -174,16 +415,27 @@ const Transfer = () => {
                         <SelectValue placeholder="Select source account" />
                       </SelectTrigger>
                       <SelectContent>
-                        {eligibleAccounts.map((account: any) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            <div className="flex justify-between items-center w-full">
-                              <span>{account.type} {account.accountNumber}</span>
-                              <span className="text-muted-foreground ml-4">
-                                {formatCurrency(account.balance)}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))}
+                        {isLoadingAccounts ? (
+                          <div className="flex items-center justify-center p-4">
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            <span>Loading accounts...</span>
+                          </div>
+                        ) : eligibleAccounts.length === 0 ? (
+                          <div className="p-4 text-center text-muted-foreground">
+                            No accounts available
+                          </div>
+                        ) : (
+                          eligibleAccounts.map((account) => (
+                            <SelectItem key={account.uuid} value={account.uuid}>
+                              <div className="flex justify-between items-center w-full">
+                                <span>{account.memo} - {account.bank_account_number}</span>
+                                <span className="text-muted-foreground ml-4">
+                                  {formatCurrency(account.available_balance)}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     {formData.fromAccount && (
@@ -196,7 +448,7 @@ const Transfer = () => {
                   {/* To Account */}
                   <div className="space-y-2">
                     <Label>To Account</Label>
-                    {formData.transferType === "internal" ? (
+                    {formData.transferType === "between_accounts" ? (
                       <Select 
                         value={formData.toAccount} 
                         onValueChange={(value) => handleInputChange("toAccount", value)}
@@ -205,25 +457,32 @@ const Transfer = () => {
                           <SelectValue placeholder="Select destination account" />
                         </SelectTrigger>
                         <SelectContent>
-                          {eligibleAccounts
-                            .filter((acc: any) => acc.id !== formData.fromAccount)
-                            .map((account: any) => (
-                            <SelectItem key={account.id} value={account.id}>
-                              <div className="flex justify-between items-center w-full">
-                                <span>{account.type} {account.accountNumber}</span>
-                                <span className="text-muted-foreground ml-4">
-                                  {formatCurrency(account.balance)}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
+                          {isLoadingAccounts ? (
+                            <div className="flex items-center justify-center p-4">
+                              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              <span>Loading accounts...</span>
+                            </div>
+                          ) : (
+                            eligibleAccounts
+                              .filter((acc) => acc.uuid !== formData.fromAccount)
+                              .map((account) => (
+                                <SelectItem key={account.uuid} value={account.uuid}>
+                                  <div className="flex justify-between items-center w-full">
+                                    <span>{account.memo} - {account.bank_account_number}</span>
+                                    <span className="text-muted-foreground ml-4">
+                                      {formatCurrency(account.available_balance)}
+                                    </span>
+                                  </div>
+                                </SelectItem>
+                              ))
+                          )}
                         </SelectContent>
                       </Select>
                     ) : (
                       <Input
                         placeholder="External account number or email"
-                        value={formData.toAccount}
-                        onChange={(e) => handleInputChange("toAccount", e.target.value)}
+                        value={formData.toAccountNumber}
+                        onChange={(e) => handleInputChange("toAccountNumber", e.target.value)}
                       />
                     )}
                   </div>
@@ -260,10 +519,18 @@ const Transfer = () => {
                   <Button 
                     type="submit" 
                     className="w-full h-12 bg-gradient-to-r from-banking-primary to-banking-secondary"
-                    disabled={isLoading}
+                    disabled={isLoading || confirmationRequired}
                   >
                     {isLoading ? (
-                      "Processing Transfer..."
+                      <div className="flex items-center">
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Processing Transfer...
+                      </div>
+                    ) : transactionStatus === "confirmed" ? (
+                      <div className="flex items-center">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Transfer Completed
+                      </div>
                     ) : (
                       <>
                         Transfer {formData.amount && `$${formData.amount}`}
@@ -272,6 +539,79 @@ const Transfer = () => {
                     )}
                   </Button>
                 </form>
+
+                {/* Confirmation Code Input */}
+                {confirmationRequired && (
+                  <div className="mt-6 space-y-4 p-6 border rounded-lg bg-muted/20">
+                    <div className="text-center">
+                      <h3 className="font-bold text-lg mb-2">Confirmation Required</h3>
+                      <p className="text-sm text-muted-foreground">
+                        For your security, we've sent a verification code to your registered device.
+                        Please enter the 6-digit code below to complete your transfer.
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center justify-center py-2">
+                      <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center">
+                        <Clock className="w-8 h-8 text-amber-600" />
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 mb-4">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-amber-800">
+                          This code will expire in 5 minutes. If you don't receive the code, 
+                          you can cancel and try again.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmationCode" className="text-center block">Verification Code</Label>
+                      <Input
+                        id="confirmationCode"
+                        placeholder="Enter 6-digit code"
+                        value={confirmationCode}
+                        onChange={(e) => setConfirmationCode(e.target.value)}
+                        className="text-center tracking-widest text-lg font-medium"
+                        maxLength={6}
+                      />
+                    </div>
+                    
+                    <div className="flex gap-3 pt-2">
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          setConfirmationRequired(false);
+                          setTransactionId(null);
+                          setConfirmationCode("");
+                          setTransactionStatus("idle");
+                        }}
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleConfirmTransaction}
+                        className="flex-1 bg-gradient-to-r from-banking-primary to-banking-secondary"
+                        disabled={isLoading || confirmationCode.length < 6}
+                      >
+                        {isLoading ? (
+                          <div className="flex items-center">
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Verifying...
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Confirm Transfer
+                          </div>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -279,7 +619,8 @@ const Transfer = () => {
           {/* Security & Info */}
           <div className="space-y-6">
             {/* Transfer Summary */}
-            {(formData.fromAccount && formData.toAccount && formData.amount) && (
+            {(formData.fromAccount && ((formData.transferType === "between_accounts" && formData.toAccount) || 
+              (formData.transferType !== "between_accounts" && formData.toAccountNumber)) && formData.amount) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Transfer Summary</CardTitle>
@@ -295,9 +636,9 @@ const Transfer = () => {
                   <div>
                     <p className="text-sm text-muted-foreground">To</p>
                     <p className="font-medium">
-                      {formData.transferType === "internal" 
+                      {formData.transferType === "between_accounts" 
                         ? getAccountName(formData.toAccount)
-                        : formData.toAccount || "External Account"
+                        : formData.toAccountNumber || "External Account"
                       }
                     </p>
                   </div>
@@ -307,6 +648,37 @@ const Transfer = () => {
                       ${formData.amount}
                     </p>
                   </div>
+                  
+                  {/* Transaction Status */}
+                  {transactionStatus !== "idle" && (
+                    <div className="pt-4 border-t">
+                      <p className="text-sm text-muted-foreground">Status</p>
+                      <div className={`flex items-center mt-1 ${
+                        transactionStatus === "pending" ? "text-amber-500" :
+                        transactionStatus === "confirmed" ? "text-emerald-500" :
+                        "text-red-500"
+                      }`}>
+                        {transactionStatus === "pending" && (
+                          <>
+                            <Clock className="w-5 h-5 mr-2" />
+                            <span>Processing Transaction</span>
+                          </>
+                        )}
+                        {transactionStatus === "confirmed" && (
+                          <>
+                            <CheckCircle className="w-5 h-5 mr-2" />
+                            <span>Transaction Completed</span>
+                          </>
+                        )}
+                        {transactionStatus === "failed" && (
+                          <>
+                            <AlertCircle className="w-5 h-5 mr-2" />
+                            <span>Transaction Failed</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -332,7 +704,7 @@ const Transfer = () => {
                   <div>
                     <p className="font-medium">Processing Time</p>
                     <p className="text-sm text-muted-foreground">
-                      {formData.transferType === "internal" 
+                      {formData.transferType === "between_accounts" 
                         ? "Instant" 
                         : formData.transferType === "wire" 
                         ? "Same day" 

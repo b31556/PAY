@@ -75,7 +75,8 @@ Returns a list of the user's bank accounts and cards.
       "thm": "0%",
       "fillup_timeline": "2025-08-11T12:34:56Z",
       "kamat": "0%",
-      "kamet_this_year": "0%"
+      "kamet_this_year": "0%",
+      "memo": "Checking account" // you use it as the title of account
     }
   ],
   "cards": [
@@ -85,7 +86,195 @@ Returns a list of the user's bank accounts and cards.
       "expiration_date": "12/25",
       "cvv": "123",
       "card_type": "credit",
-      "account_uuid": "account-uuid-1234"
+      "account_uuid": "account-uuid-1234",
+      "is_locked": false // IF TRUE YOU SHOW SOME KIND OF ANIMATION OR ART IN THE CARD LIKE FREEZE ETC, you also change the kártya zárolása gomb to kártya feloldása
     }
   ]
+}
+```
+
+
+## POST /create-account
+
+**Description:**
+Creates a new bank account for the user.
+
+**Request:**
+```json
+{
+  "account_type": "checking", // or "savings" or "credit"
+  "account_title": "My Checking Account"
+}
+```
+
+**Response:**
+```json
+{
+  "code" : 10,
+  "message": "done"
+}  // IF THE ACCOUNT IS CREATED, YOU RELOAD THE ACCOUNTS PAGE
+```
+
+OR
+
+```json
+{
+  "code": 56,
+  "message": "awaiting-approval"
+}  // YOU DISPLAY A MESSAGE TO THE USER INDICATING THAT THE ACCOUNT CREATION IS AWAITING APPROVAL AND IT WILL BE CREATED AS SOON AS ITS APPROVED
+```
+
+
+## POST /toggle-card-lock
+
+**Description:**
+Toggles the lock status of a user's card.
+
+**Request:**
+```json
+{
+  "card_uuid": "card-uuid-1234"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Card lock status updated successfully",
+  "card_uuid": "card-uuid-1234",
+  "new_status": "unlocked"
+}
+```
+
+
+## POST /set-card-settings
+
+**Description:**
+Updates the settings of a user's card.
+
+**Request:**
+```json
+{
+  "card_uuid": "card-uuid-1234",
+  "settings": {
+    "connected_account_uuid": "account-uuid-5678",
+    "pincode": "1234"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Card settings updated successfully",
+  "card_uuid": "card-uuid-1234"
+}
+```
+
+
+## POST /make-card
+
+**Description:**
+Creates a new card for the user.
+
+**Request:**
+```json
+{
+  "connected_account_uuid": "account-uuid-1234",
+  "pincode": "1234" // 4-digit PIN code for the card
+
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Card created successfully"
+}
+
+OR
+
+HTTP ERROR 400: Maximum card limit reached
+
+
+## POST /reveal-full-card-number
+
+**Description:**
+Reveals the full card number for a user's card.
+
+**Request:**
+```json
+{
+  "card_uuid": "card-uuid-1234"
+}
+```
+
+**Response:**
+```json
+{
+  "full_card_number": "1234 5678 9012 3456"
+}
+
+
+## POST /start-transaction
+
+**Description:**
+Starts a new transaction.
+
+**Request:**
+```json
+{
+  "from_account": "account-uuid-1234",
+  "to_account": "account-uuid-5678",
+  "amount": 100.00,
+  "memo": "memo",
+  "transfer_type": "between_accounts"
+}  // IF transfer_type IS "between my accounts"
+
+OR 
+
+{
+  "from_account": "account-uuid-1234",
+  "to_account_number": "123456789",
+  "amount": 100.00,
+  "memo": "memo",
+  "transfer_type": "wire"
+}  // IF transfer_type IS "wire" or "external"
+```
+
+**Response:**
+```json
+{
+  "message": "Transaction created successfully",
+  "transaction_id": "tx-1234",
+  "from_account": "account-uuid-1234",
+  "to_account": "account-uuid-5678",
+  "amount": 100.00,
+  "memo": "memo",
+  "transfer_type": "between_accounts"
+}
+
+OR 
+
+HTTP ERROR 400: something that should be shown to the user
+
+
+## POST /confirm-transaction
+
+**Description:**
+Confirms a pending transaction.
+
+**Request:**
+```json
+{
+  "transaction_id": "tx-1234",
+  "confirmation_code": "123456"   // not needed for between accounts
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Transaction completed successfully",
+  "transaction_id": "tx-1234"
 }

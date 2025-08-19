@@ -4,6 +4,7 @@ from fastapi.responses import FileResponse, JSONResponse
 import fastapi.staticfiles
 from typing import Dict
 import os
+import uuid
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, constr
@@ -38,7 +39,7 @@ async def health_check():
 
 @app.post("/me")
 def get_me(ctx: RequestContext = Depends(process_request)):
-    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
+    user: User = ctx.session.user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return JSONResponse(content={"username": user.username, "email": user.email, "full_name": user.full_name})
@@ -46,10 +47,10 @@ def get_me(ctx: RequestContext = Depends(process_request)):
 
 @app.post("/balances")
 def get_balances(ctx: RequestContext = Depends(process_request)):
-    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
+    user: User = ctx.session.user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    print(f"time taken: {datetime.now() - time_now}")
+    
     response = {"total": 0, "accounts": [], "recent_transactions": [], "percent_compared_to_last_month": 0}
     accounts = user.accounts
     total=0
@@ -63,11 +64,11 @@ def get_balances(ctx: RequestContext = Depends(process_request)):
             "account_type": account.account_type,
         })
 
-    time_now = datetime.now()
-    recent_incomes = db_session.query(Transaction).filter_by(receiver_id=user.id).order_by(Transaction.created_at.desc()).limit(10).all()
-    recent_spendings = db_session.query(Transaction).filter_by(sender_id=user.id).order_by(Transaction.created_at.desc()).limit(10).all()
-    print(f"time taken: {datetime.now() - time_now}")
-    time_now = datetime.now()
+    
+    recent_incomes = ctx.db_session.query(Transaction).filter_by(receiver_id=user.id).order_by(Transaction.created_at.desc()).limit(10).all()
+    recent_spendings = ctx.db_session.query(Transaction).filter_by(sender_id=user.id).order_by(Transaction.created_at.desc()).limit(10).all()
+    
+    
     recent = recent_incomes + recent_spendings
     recent.sort(key=lambda x: x.created_at, reverse=True)
     recent = recent[:10]
@@ -79,17 +80,19 @@ def get_balances(ctx: RequestContext = Depends(process_request)):
             "title": make_transaction_title(tx),
         })
 
-    last_month_balances = [json.loads(x.last_balances)[-1] for x in user.accounts if len(json.loads(x.last_balances)) > 1]
-    print(f"time taken: {datetime.now() - time_now}")
+    try:
+        last_month_balances = [json.loads(x.last_balances)[-1] for x in user.accounts if len(json.loads(x.last_balances)) > 1]
+    except:
+        last_month_balances = [0] * len(user.accounts)
+
     response["total"] = total
     response["percent_compared_to_last_month"] = (sum(x.balance for x in user.accounts) - sum(last_month_balances)) / sum(last_month_balances) * 100 if sum(last_month_balances) != 0 else 0
-    print(f"final time taken: {datetime.now() - final_time}")
     return JSONResponse(content=response)
 
 
 @app.post("/accounts")
 def get_accounts(ctx: RequestContext = Depends(process_request)):
-    user: User = db_session.query(Session).filter_by(id=ctx.session_id).first().user
+    user: User = ctx.session.user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -113,12 +116,14 @@ def get_accounts(ctx: RequestContext = Depends(process_request)):
     cards = user.cards
     for card in cards:
         response["cards"].append({
-            "card_number": card.card_number,
+            "uuid": card.uuid,
+            "card_number": f"**** **** **** {card.card_number[-4:]}",  # Mask all but last 4 digits
             "card_holder": card.card_holder,
-            "expiration_date": str(card.expiration_date),
+            "expiration_date": card.expiration_date.strftime("%Y/%m"),
             "cvv": card.ccv,
             "card_type": card.card_type,
-            "account_uuid": card.account.uuid
+            "account_uuid": card.account.uuid,
+            "is_locked": True if card.status == "locked" else False
         })
 
     return JSONResponse(content=response)
@@ -132,6 +137,149 @@ def create_account(ctx: RequestContext = Depends(process_request)):
         raise HTTPException(status_code=404, detail="User not found")
 
     account_data = ctx.data
-    new_account = make_account(db_session, user, account_data["account_type"], account_data["account_title"])
+    new_account = core.request_bank_account(ctx.db_session, user, account_data["account_type"], account_data["account_title"])
 
-    return JSONResponse(content={"message": "Account created successfully", "account": new_account.to_dict()})
+    return JSONResponse(content=new_account)
+
+
+@app.post("/toggle-card-lock")
+def toggle_card_lock(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    card_data = ctx.data
+    card = ctx.db_session.query(Card).filter_by(uuid=card_data["card_uuid"], user_id=user.id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    card.status = "unlocked" if card.status == "locked" else "locked"
+    ctx.db_session.commit()
+
+    return JSONResponse(content={"message": "Card lock status updated successfully", "card_uuid": card.uuid, "new_status": card.status})
+
+
+@app.post("/set-card-settings")
+def set_card_settings(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    card_data = ctx.data
+    card = ctx.db_session.query(Card).filter_by(uuid=card_data["card_uuid"], user_id=user.id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    card_data = card_data.get("settings", {})
+    connected_account_uuid = card_data.get("connected_account_uuid")
+    if connected_account_uuid:
+        connected_account = ctx.db_session.query(Account).filter_by(uuid=connected_account_uuid, user_id=user.id).first()
+        if connected_account:
+            card.account_id = connected_account.id
+        else:
+            raise HTTPException(status_code=404, detail="Connected account not found")
+    
+    pincode = card_data.get("pincode")
+    if pincode:
+        card.pincode = pincode
+    
+    ctx.db_session.commit()
+
+    return JSONResponse(content={"message": "Card settings updated successfully", "card_uuid": card.uuid})
+
+
+@app.post("/make-card")
+def make_card(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    card_data = ctx.data
+    pincode = card_data.get("pincode")
+    connected_account_uuid = card_data.get("connected_account_uuid")
+
+    new_card = core.request_bank_card(ctx.db_session, user, pincode, connected_account_uuid)
+
+    return JSONResponse(content={"message": "Card created successfully"})
+
+
+
+@app.post("/reveal-full-card-number")
+def reveal_full_card_number(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    card_data = ctx.data
+    card = ctx.db_session.query(Card).filter_by(uuid=card_data["card_uuid"], user_id=user.id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    formatted = " ".join(card.card_number[i:i+4] for i in range(0, len(card.card_number), 4))
+
+    return JSONResponse(content={"full_card_number": formatted})
+
+
+@app.post("/make-transaction")
+def make_transaction(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    transaction_data = ctx.data
+    transaction_type = transaction_data.get("type") # wire or betweenmy or external
+    amount = transaction_data.get("amount")
+    from_account_uuid = transaction_data.get("from_account_uuid")
+    to_account_uuid = transaction_data.get("to_account_uuid") # optional
+    to_account_number = transaction_data.get("to_account_number") # optional
+    memo = transaction_data.get("memo") # optional
+
+    if transaction_type == "wire":
+        tx = core.start_transaction(
+            ctx.db_session, user, amount, from_account_uuid, to_account_uuid, to_account_number, transaction_type, memo
+        )
+    elif transaction_type == "betweenmy":
+        tx = core.start_transaction(
+            ctx.db_session, user, amount, from_account_uuid, to_account_uuid, to_account_number, transaction_type, memo
+        )
+    elif transaction_type == "external":
+        raise HTTPException(status_code=400, detail="External transactions are not supported yet")
+    else:
+        raise HTTPException(status_code=400, detail="Invalid transaction type")
+    
+    from_account = tx.sender_account
+    to_account = tx.receiver_account
+    amount = tx.amount
+    memo = tx.memo
+    transfer_type = tx.transaction_type
+
+    return JSONResponse(content={"message": "Transaction created successfully", "transaction_id": tx.transaction_code, "from_account": from_account, "to_account": to_account, "amount": amount, "memo": memo, "transfer_type": transfer_type})
+
+
+
+@app.post("/confirm-transaction")
+def confirm_transaction(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    confirmation_data = ctx.data
+    transaction_id = confirmation_data.get("transaction_id")
+    confirmation_code = confirmation_data.get("confirmation_code")
+
+    tx: Transaction = ctx.db_session.query(Transaction).filter_by(id=transaction_id, user_id=user.id).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    if tx.status != "created":
+        raise HTTPException(status_code=400, detail="Transaction is not waiting for confirmation")
+
+    if tx.sender_id == tx.receiver_id:
+        pass  # between my accounts, no confirmation needed
+    else:
+        if not core.verify_confirmation_code(tx, confirmation_code):
+            raise HTTPException(status_code=400, detail="Invalid confirmation code") 
+
+    core.finalize_transaction(tx, ctx.db_session)
+    ctx.db_session.commit()
+
+    return JSONResponse(content={"message": "Completed the transaction successfully", "transaction_id": tx.id})

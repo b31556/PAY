@@ -1,3 +1,5 @@
+from datetime import datetime
+import os
 from models import Transaction
 
 METHOD_DISPLAY = {
@@ -50,3 +52,18 @@ def make_transaction_title(tx: Transaction) -> str:
         return f"{sender_name} to {receiver_name} via {method_display}"
     else:
         return f"{sender_name} to {receiver_name}"
+    
+
+
+def generate_transaction_code() -> str:
+    """
+    Generate a unique transaction code for the given transaction.
+    """
+    return f"TX-IUT-{datetime.now().strftime('%Y%m%d%H%M%S')}{datetime.now().microsecond}-{os.urandom(12).hex().upper()}"
+
+
+def generate_transaction_secret() -> str:
+    """
+    Generate a unique transaction secret for the given transaction.
+    """
+    return f"{os.urandom(36).hex().upper()}"
