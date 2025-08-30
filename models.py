@@ -60,6 +60,7 @@ class User(Base):
     buys = relationship("Transaction", back_populates="receiver", foreign_keys='Transaction.receiver_id', cascade="all, delete-orphan")
     otp_secrets = relationship("OtpSecret", back_populates="user", cascade="all, delete-orphan")
     accounts = relationship("Account", back_populates="user", cascade="all, delete-orphan")
+    contacts = relationship("Contact", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(username='{self.username}')>"
@@ -85,6 +86,7 @@ class Account(Base):
     user = relationship("User", back_populates="accounts")
     sells = relationship("Transaction", back_populates="sender_account", foreign_keys='Transaction.sender_account_id', cascade="all, delete-orphan")
     buys = relationship("Transaction", back_populates="receiver_account", foreign_keys='Transaction.receiver_account_id', cascade="all, delete-orphan")
+    contacts = relationship("Contact", back_populates="bank_account", cascade="all, delete-orphan")
 
 class Card(Base):
     __tablename__ = 'cards'
@@ -103,6 +105,21 @@ class Card(Base):
 
     account = relationship("Account", back_populates="cards")
     user = relationship("User", back_populates="cards")
+
+class Contact(Base):
+    __tablename__ = 'contacts'
+    id = Column(Integer, primary_key=True)
+    uuid = Column(String(255), unique=True, nullable=False, default=str(uuid.uuid4()))
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=True)
+    bank_account_number = Column(String(255), nullable=False)
+    bank_account_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="contacts")
+    bank_account = relationship("Account", back_populates="contacts")
 
 # ----
 

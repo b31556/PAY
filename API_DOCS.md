@@ -240,6 +240,16 @@ OR
   "memo": "memo",
   "transfer_type": "wire"
 }  // IF transfer_type IS "wire" or "external"
+
+OR 
+
+{
+  "from_account": "account-uuid-1234",
+  "to_contact_uuid": "contact-uuid-5678",
+  "amount": 100.00,
+  "memo": "memo",
+  "transfer_type": "to_contact"
+}  // IF transfer_type IS "to_contact"
 ```
 
 **Response:**
@@ -277,4 +287,34 @@ Confirms a pending transaction.
 {
   "message": "Transaction completed successfully",
   "transaction_id": "tx-1234"
+}
+
+
+## POST /contacts/list
+
+**Description:**
+Lists all contacts for the authenticated user.
+
+**Request:**
+```json
+{}
+```
+
+**Response:**
+```json
+{
+  "contacts": [
+    {
+      "uuid": "contact-uuid-1234",
+      "name": "John Doe",
+      "bank_account_number": "123456789",
+      "email": "john.doe@example.com"
+    },
+    {
+      "uuid": "contact-uuid-5678",
+      "name": "Jane Smith",
+      "bank_account_number": "987654321",
+      "email": "jane.smith@example.com"
+    }
+  ]
 }

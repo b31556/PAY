@@ -32,7 +32,7 @@ const BankingLayout = ({ children }: BankingLayoutProps) => {
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Accounts", href: "/accounts", icon: CreditCard },
     { name: "Transfer", href: "/transfer", icon: ArrowLeftRight },
-    { name: "Pay Bills", href: "/bills", icon: Receipt },
+    { name: "Transactions", href: "/transactions", icon: Receipt },
     { name: "Profile", href: "/profile", icon: User },
     { name: "Settings", href: "/settings", icon: Settings },
   ];

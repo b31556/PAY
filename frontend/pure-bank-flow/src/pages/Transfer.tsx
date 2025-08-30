@@ -16,7 +16,8 @@ import {
   RefreshCw,
   Users,
   Globe,
-  Building
+  Building,
+  UserPlus
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -59,10 +60,19 @@ interface AccountsResponse {
   cards: Card[];
 }
 
+interface Contact {
+  uuid: string;
+  name: string;
+  bank_account_number: string;
+  email: string;
+}
+
 const Transfer = () => {
   const [user, setUser] = useState<any>(null);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [formData, setFormData] = useState({
     fromAccount: "",
     toAccount: "",
@@ -79,8 +89,64 @@ const Transfer = () => {
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
   const [pendingTransaction, setPendingTransaction] = useState<any>(null);
 
-  // Fetch user accounts from API
+  // Ha az accounts betöltődtek, és van from/to az URL-ben, állítsuk be újra a formData-t
   useEffect(() => {
+    if (accounts.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    let update = false;
+    let newForm: typeof formData = { ...formData };
+    // fromAccount
+    const fromParam = params.get("from");
+    if (fromParam && accounts.some(acc => acc.uuid === fromParam)) {
+      newForm.fromAccount = fromParam;
+      update = true;
+    }
+    // toacc
+    const toaccParam = params.get("toacc");
+    if (toaccParam && accounts.some(acc => acc.uuid === toaccParam)) {
+      newForm.toAccount = toaccParam;
+      newForm.transferType = "between_accounts";
+      update = true;
+    }
+    if (update) setFormData(newForm);
+  }, [accounts]);
+
+  // URL paraméterek feldolgozása és accounts betöltése
+  useEffect(() => {
+    // URL paraméterek kiolvasása
+    const params = new URLSearchParams(window.location.search);
+    let initialType = "between_accounts";
+    let initialFrom = params.get("from") || "";
+    let initialToAccount = "";
+    let initialToAccountNumber = "";
+    // transferType logika
+    if (params.get("toacc")) {
+      initialType = "between_accounts";
+      initialToAccount = params.get("toacc") || "";
+    } else if (params.get("toban")) {
+      initialType = "wire";
+      initialToAccountNumber = params.get("toban") || "";
+    } else if (params.get("toiban")) {
+      initialType = "external";
+      initialToAccountNumber = params.get("toiban") || "";
+    } else if (params.get("tocontact")) {
+      initialType = "to_contact";
+      // toContact paramétert lehetne kezelni, de most nem implementáljuk
+    }
+    const initialAmount = params.get("amount") || "";
+    const initialMemo = params.get("memo") || "";
+
+    setFormData(prev => ({
+      ...prev,
+      fromAccount: initialFrom,
+      toAccount: initialToAccount,
+      toAccountNumber: initialToAccountNumber,
+      amount: initialAmount,
+      memo: initialMemo,
+      transferType: initialType
+    }));
+
+    // Fetch user accounts from API
     const fetchAccounts = async () => {
       setIsLoadingAccounts(true);
       try {
@@ -109,7 +175,27 @@ const Transfer = () => {
       }
     };
 
+    // Contacts lekérése
+    const fetchContacts = async () => {
+      setIsLoadingContacts(true);
+      try {
+        const response = await SendRequest("/contacts/list", {});
+        if (response.success && response.data && response.data.contacts) {
+          setContacts(response.data.contacts);
+        }
+      } catch (error) {
+        toast({
+          title: "Kapcsolatok betöltése sikertelen",
+          description: error instanceof Error ? error.message : "Nem sikerült betölteni a kontaktokat",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingContacts(false);
+      }
+    };
+
     fetchAccounts();
+    fetchContacts();
   }, []);
 
   const handleInputChange = (field: string, value: string) => {
@@ -150,6 +236,12 @@ const Transfer = () => {
     return account ? `${account.memo} - ${account.bank_account_number}` : '';
   };
 
+  // Kontakt név lekérése
+  const getContactName = (contactUuid: string) => {
+    const contact = contacts.find(c => c.uuid === contactUuid);
+    return contact ? `${contact.name} (${contact.bank_account_number})` : '';
+  };
+
   const validateTransfer = () => {
     if (!formData.fromAccount) {
       toast({
@@ -174,6 +266,15 @@ const Transfer = () => {
         toast({
           title: "Invalid Transfer",
           description: "Source and destination accounts must be different",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } else if (formData.transferType === "to_contact") {
+      if (!formData.toAccount) {
+        toast({
+          title: "Érvénytelen átutalás",
+          description: "Válasszon kontaktot!",
           variant: "destructive",
         });
         return false;
@@ -222,31 +323,43 @@ const Transfer = () => {
 
     try {
       // Prepare request payload based on transfer type
-      const payload = formData.transferType === "between_accounts" 
-        ? {
-            from_account: formData.fromAccount,
-            to_account: formData.toAccount,
-            amount: parseFloat(formData.amount),
-            memo: formData.memo,
-            transfer_type: formData.transferType
-          }
-        : {
-            from_account: formData.fromAccount,
-            to_account_number: formData.toAccountNumber,
-            amount: parseFloat(formData.amount),
-            memo: formData.memo,
-            transfer_type: formData.transferType
-          };
+      let payload;
+      if (formData.transferType === "between_accounts") {
+        payload = {
+          from_account: formData.fromAccount,
+          to_account: formData.toAccount,
+          amount: parseFloat(formData.amount),
+          memo: formData.memo,
+          transfer_type: formData.transferType
+        };
+      } else if (formData.transferType === "to_contact") {
+        payload = {
+          from_account: formData.fromAccount,
+          to_contact_uuid: formData.toAccount,
+          amount: parseFloat(formData.amount),
+          memo: formData.memo,
+          transfer_type: formData.transferType
+        };
+      } else {
+        payload = {
+          from_account: formData.fromAccount,
+          to_account_number: formData.toAccountNumber,
+          amount: parseFloat(formData.amount),
+          memo: formData.memo,
+          transfer_type: formData.transferType
+        };
+      }
 
       // Send request to start transaction
       const response = await SendRequest("/start-transaction", payload);
-      
-      if (response.success && response.data) {
+
+
+      if (response.code === 200 && response.data) {
         // Store transaction ID for confirmation if needed
         setTransactionId(response.data.transaction_id);
         
         // Check if confirmation is required for non-internal transfers
-        if (formData.transferType !== "between_accounts") {
+        if (formData.transferType !== "between_accounts" && formData.transferType !== "to_contact") {
           setConfirmationRequired(true);
           toast({
             title: "Confirmation Required",
@@ -257,12 +370,19 @@ const Transfer = () => {
           setPendingTransaction(response.data);
           setShowConfirmationDialog(true);
         }
+      } else {
+        toast({
+          title: "Transfer Failed",
+          description: response.data?.detail || "An error occurred while processing the transfer",
+          variant: "destructive",
+        });
+        setTransactionStatus("failed");
       }
     } catch (error) {
-      setTransactionStatus("failed");
+      // This is where 400 errors usually land
       toast({
         title: "Transfer Failed",
-        description: error instanceof Error ? error.message : "Failed to process transfer",
+        description: error instanceof Error ? error.message : "An error occurred while processing the transfer",
         variant: "destructive",
       });
     } finally {
@@ -413,150 +533,207 @@ const Transfer = () => {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* Transfer Type */}
-                  <div className="space-y-2">
+                    {/* Transfer Type */}
+                    <div className="space-y-2">
                     <Label>Transfer Type</Label>
                     <Select 
                       value={formData.transferType} 
-                      onValueChange={(value) => handleInputChange("transferType", value)}
+                      onValueChange={(value) => {
+                      handleInputChange("transferType", value);
+                      setTransactionStatus("idle");
+                      }}
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                      <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="between_accounts">
-                          <div className="flex items-center">
-                            <Users className="w-4 h-4 mr-2 text-banking-primary" />
-                            <span>Between My Accounts</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="wire">
-                          <div className="flex items-center">
-                            <Building className="w-4 h-4 mr-2 text-banking-secondary" />
-                            <span>To Bank Account</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="external">
-                          <div className="flex items-center">
-                            <Globe className="w-4 h-4 mr-2 text-banking-warning" />
-                            <span>Interbank Transfer</span>
-                          </div>
-                        </SelectItem>
+                      <SelectItem value="between_accounts">
+                        <div className="flex items-center">
+                        <Users className="w-4 h-4 mr-2 text-banking-primary" />
+                        <span>Between My Accounts</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="wire">
+                        <div className="flex items-center">
+                        <Building className="w-4 h-4 mr-2 text-banking-secondary" />
+                        <span>To Bank Account</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="external">
+                        <div className="flex items-center">
+                        <Globe className="w-4 h-4 mr-2 text-banking-warning" />
+                        <span>Interbank Transfer</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="to_contact">
+                        <div className="flex items-center">
+                        <UserPlus className="w-4 h-4 mr-2 text-banking-success" />
+                        <span>To Contact</span>
+                        </div>
+                      </SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
+                    </div>
 
-                  {/* From Account */}
-                  <div className="space-y-2">
+                    {/* From Account */}
+                    <div className="space-y-2">
                     <Label>From Account</Label>
                     <Select 
                       value={formData.fromAccount} 
-                      onValueChange={(value) => handleInputChange("fromAccount", value)}
+                      onValueChange={(value) => {
+                      handleInputChange("fromAccount", value);
+                      setTransactionStatus("idle");
+                      }}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select source account" />
+                      <SelectValue placeholder="Select source account" />
                       </SelectTrigger>
                       <SelectContent>
-                        {isLoadingAccounts ? (
-                          <div className="flex items-center justify-center p-4">
-                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                            <span>Loading accounts...</span>
+                      {isLoadingAccounts ? (
+                        <div className="flex items-center justify-center p-4">
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        <span>Loading accounts...</span>
+                        </div>
+                      ) : eligibleAccounts.length === 0 ? (
+                        <div className="p-4 text-center text-muted-foreground">
+                        No accounts available
+                        </div>
+                      ) : (
+                        eligibleAccounts.map((account) => (
+                        <SelectItem key={account.uuid} value={account.uuid}>
+                          <div className="flex justify-between items-center w-full">
+                          <span>{account.memo} - {account.bank_account_number}</span>
+                          <span className="text-muted-foreground ml-4">
+                            {formatCurrency(account.available_balance)}
+                          </span>
                           </div>
-                        ) : eligibleAccounts.length === 0 ? (
-                          <div className="p-4 text-center text-muted-foreground">
-                            No accounts available
-                          </div>
-                        ) : (
-                          eligibleAccounts.map((account) => (
-                            <SelectItem key={account.uuid} value={account.uuid}>
-                              <div className="flex justify-between items-center w-full">
-                                <span>{account.memo} - {account.bank_account_number}</span>
-                                <span className="text-muted-foreground ml-4">
-                                  {formatCurrency(account.available_balance)}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))
-                        )}
+                        </SelectItem>
+                        ))
+                      )}
                       </SelectContent>
                     </Select>
                     {formData.fromAccount && (
                       <p className="text-sm text-muted-foreground">
-                        Available balance: {formatCurrency(getAccountBalance(formData.fromAccount))}
+                      Available balance: {formatCurrency(getAccountBalance(formData.fromAccount))}
                       </p>
                     )}
-                  </div>
+                    </div>
 
-                  {/* To Account */}
-                  <div className="space-y-2">
+                    {/* To Account */}
+                    <div className="space-y-2">
                     <Label>To Account</Label>
                     {formData.transferType === "between_accounts" ? (
                       <Select 
-                        value={formData.toAccount} 
-                        onValueChange={(value) => handleInputChange("toAccount", value)}
+                      value={formData.toAccount} 
+                      onValueChange={(value) => {
+                        handleInputChange("toAccount", value);
+                        setTransactionStatus("idle");
+                      }}
+                      >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select destination account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {isLoadingAccounts ? (
+                        <div className="flex items-center justify-center p-4">
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          <span>Loading accounts...</span>
+                        </div>
+                        ) : (
+                        eligibleAccounts
+                          .filter((acc) => acc.uuid !== formData.fromAccount)
+                          .map((account) => (
+                          <SelectItem key={account.uuid} value={account.uuid}>
+                            <div className="flex justify-between items-center w-full">
+                            <span>{account.memo} - {account.bank_account_number}</span>
+                            <span className="text-muted-foreground ml-4">
+                              {formatCurrency(account.available_balance)}
+                            </span>
+                            </div>
+                          </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                      </Select>
+                    ) : formData.transferType === "to_contact" ? (
+                      <Select
+                        value={formData.toAccount}
+                        onValueChange={(value) => {
+                          handleInputChange("toAccount", value);
+                          setTransactionStatus("idle");
+                        }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select destination account" />
+                          <SelectValue placeholder="Válasszon kontaktot" />
                         </SelectTrigger>
                         <SelectContent>
-                          {isLoadingAccounts ? (
+                          {isLoadingContacts ? (
                             <div className="flex items-center justify-center p-4">
                               <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                              <span>Loading accounts...</span>
+                              <span>Kapcsolatok betöltése...</span>
+                            </div>
+                          ) : contacts.length === 0 ? (
+                            <div className="p-4 text-center text-muted-foreground">
+                              Nincs elérhető kontakt
                             </div>
                           ) : (
-                            eligibleAccounts
-                              .filter((acc) => acc.uuid !== formData.fromAccount)
-                              .map((account) => (
-                                <SelectItem key={account.uuid} value={account.uuid}>
-                                  <div className="flex justify-between items-center w-full">
-                                    <span>{account.memo} - {account.bank_account_number}</span>
-                                    <span className="text-muted-foreground ml-4">
-                                      {formatCurrency(account.available_balance)}
-                                    </span>
-                                  </div>
-                                </SelectItem>
-                              ))
+                            contacts.map((contact) => (
+                              <SelectItem key={contact.uuid} value={contact.uuid}>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{contact.name}</span>
+                                  <span className="text-xs text-muted-foreground">{contact.bank_account_number} &bull; {contact.email}</span>
+                                </div>
+                              </SelectItem>
+                            ))
                           )}
                         </SelectContent>
                       </Select>
                     ) : (
                       <Input
-                        placeholder="External account number or email"
-                        value={formData.toAccountNumber}
-                        onChange={(e) => handleInputChange("toAccountNumber", e.target.value)}
+                      placeholder="External account number or email"
+                      value={formData.toAccountNumber}
+                      onChange={(e) => {
+                        handleInputChange("toAccountNumber", e.target.value);
+                        setTransactionStatus("idle");
+                      }}
                       />
                     )}
-                  </div>
+                    </div>
 
-                  {/* Amount */}
-                  <div className="space-y-2">
+                    {/* Amount */}
+                    <div className="space-y-2">
                     <Label>Amount</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">$</span>
                       <Input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="0.00"
-                        value={formData.amount}
-                        onChange={(e) => handleInputChange("amount", e.target.value)}
-                        className="pl-8"
-                        required
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={formData.amount}
+                      onChange={(e) => {
+                        handleInputChange("amount", e.target.value);
+                        setTransactionStatus("idle");
+                      }}
+                      className="pl-8"
+                      required
                       />
                     </div>
-                  </div>
+                    </div>
 
-                  {/* Memo */}
-                  <div className="space-y-2">
+                    {/* Memo */}
+                    <div className="space-y-2">
                     <Label>Memo (Optional)</Label>
                     <Textarea
                       placeholder="Add a note for this transfer..."
                       value={formData.memo}
-                      onChange={(e) => handleInputChange("memo", e.target.value)}
+                      onChange={(e) => {
+                      handleInputChange("memo", e.target.value);
+                      setTransactionStatus("idle");
+                      }}
                       rows={3}
                     />
-                  </div>
+                    </div>
 
                   <Button 
                     type="submit" 
@@ -583,7 +760,7 @@ const Transfer = () => {
                 </form>
 
                 {/* Confirmation Code Input */}
-                {confirmationRequired && (
+                {confirmationRequired && formData.transferType !== "to_contact" && (
                   <div className="mt-6 space-y-4 p-6 border rounded-lg bg-muted/20">
                     <div className="text-center">
                       <h3 className="font-bold text-lg mb-2">Confirmation Required</h3>
@@ -661,8 +838,11 @@ const Transfer = () => {
           {/* Security & Info */}
           <div className="space-y-6">
             {/* Transfer Summary */}
-            {(formData.fromAccount && ((formData.transferType === "between_accounts" && formData.toAccount) || 
-              (formData.transferType !== "between_accounts" && formData.toAccountNumber)) && formData.amount) && (
+            {(formData.fromAccount && (
+              (formData.transferType === "between_accounts" && formData.toAccount) ||
+              (formData.transferType === "to_contact" && formData.toAccount) ||
+              (formData.transferType !== "between_accounts" && formData.transferType !== "to_contact" && formData.toAccountNumber)
+            ) && formData.amount) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Transfer Summary</CardTitle>
@@ -678,8 +858,10 @@ const Transfer = () => {
                   <div>
                     <p className="text-sm text-muted-foreground">To</p>
                     <p className="font-medium">
-                      {formData.transferType === "between_accounts" 
+                      {formData.transferType === "between_accounts"
                         ? getAccountName(formData.toAccount)
+                        : formData.transferType === "to_contact"
+                        ? getContactName(formData.toAccount)
                         : formData.toAccountNumber || "External Account"
                       }
                     </p>
@@ -790,7 +972,7 @@ const Transfer = () => {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Fogadó számla</p>
-                    <p className="font-medium">{getAccountName(formData.toAccount)}</p>
+                    <p className="font-medium">{contacts.find(contact => contact.uuid === formData.toAccount)?.name || getAccountName(formData.toAccount)}</p>
                   </div>
                 </div>
                 

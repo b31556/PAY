@@ -28,7 +28,9 @@ interface Account {
   thm?: string;
   fillup_timeline?: string;
   kamat?: string;
-  kamet_this_year?: string;}
+  kamet_this_year?: string;
+  memo: string;
+}
 
 interface Card {
   card_number: string;
@@ -151,8 +153,7 @@ interface BalanceData {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardDescription>
-                    {account.account_type === "checking" ? "Folyószámla" : 
-                     account.account_type === "savings" ? "Megtakarítási számla" : "Hitelkártya számla"}
+                    {account.memo}
                   </CardDescription>
                   <Wallet className="w-4 h-4 text-muted-foreground" />
                 </div>

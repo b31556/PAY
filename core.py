@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from models import Account, Card, Transaction, User
+from models import Account, Card, Contact, Transaction, User
 import uuid as uuuid
 from sqlalchemy import func
 import os
@@ -150,7 +150,7 @@ def request_bank_card(db_session, user, pincode, connected_account_uuid):
 
 
 
-def start_transaction(db_session, user, amount, from_account_uuid, to_account_uuid, to_bank_account, transaction_type, memo=None):
+def start_transaction(db_session, user, amount, from_account_uuid, transaction_type, memo, to_account_uuid=None, to_bank_account=None, to_contact_uuid=None):
     if transaction_type == "wire":
         from_account = db_session.query(Account).filter_by(uuid=from_account_uuid, user_id=user.id).first()
         if not from_account:
@@ -208,7 +208,34 @@ def start_transaction(db_session, user, amount, from_account_uuid, to_account_uu
         return transaction
     elif transaction_type == "external":
         raise HTTPException(status_code=400, detail="External transactions are not supported yet")
+    
+    elif transaction_type == "to_contact":
+        to_contact = db_session.query(Contact).filter_by(uuid=to_contact_uuid, user_id=user.id).first()
+        if not to_contact:
+            raise HTTPException(status_code=404, detail="Contact not found")
 
+        from_account = db_session.query(Account).filter_by(uuid=from_account_uuid, user_id=user.id).first()
+        if not from_account:
+            raise HTTPException(status_code=404, detail="From account not found")
+
+        transaction_code = generate_transaction_code()
+        transaction_secret = generate_transaction_secret()
+
+        transaction = Transaction(
+            sender_id=user.id,
+            receiver_id=to_contact.bank_account.user_id,
+            sender_account_id=from_account.id,
+            receiver_account_id=to_contact.bank_account.id,
+            amount=amount,
+            memo=memo,
+            created_at=datetime.datetime.now(),
+            state="created",
+            transaction_code=transaction_code,
+            transaction_secret=transaction_secret
+        )
+        db_session.add(transaction)
+        db_session.commit()
+        return transaction
 
 def verify_confirmation_code(transaction: Transaction, confirmation_code: str) -> bool:
     return True  # TODO: Implement confirmation code verification

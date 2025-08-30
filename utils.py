@@ -18,7 +18,14 @@ def make_transaction_title(tx: Transaction) -> str:
     """
 
     sender = tx.sender
+    for contact in sender.contacts:
+        # If the receiver account is in sender's contacts, use contact name
+        if contact.bank_account_id == tx.receiver_account_id:
+            receiver = contact.name
+            return f"Transfer to {receiver}"
+        
     receiver = getattr(tx, 'receiver', None)
+
     receiver_account = getattr(tx, 'receiver_account', None)
     method_key = (tx.completed_via or "").lower()
 

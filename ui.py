@@ -16,7 +16,7 @@ from requests_cache import datetime
 import auth
 import core
 from database import get_db_session
-from models import Account, User, Transaction, Card, AccessToken, OtpSecret, Session
+from models import Account, Contact, User, Transaction, Card, AccessToken, OtpSecret, Session
 from config import URL, PORT, DATABASE, SESSION_TIMEOUT, STEP1_TIMEOUT
 
 from encrpt import process_response, process_request, RequestContext
@@ -62,6 +62,7 @@ def get_balances(ctx: RequestContext = Depends(process_request)):
             "balance": account.balance,
             "currency": account.currency,
             "account_type": account.account_type,
+            "memo": account.memo
         })
 
     
@@ -116,7 +117,8 @@ def get_accounts(ctx: RequestContext = Depends(process_request)):
             "thm": "0%", #TODO: Implement THM calculation
             "fillup_timeline": str(datetime.now().isoformat()), #TODO: Implement fillup timeline calculation
             "kamat": "0%", #TODO: Implement kamat calculation
-            "kamet_this_year": "0%" #TODO: Implement kamet calculation
+            "kamet_this_year": "0%", #TODO: Implement kamet calculation,
+            "memo": account.memo
         })
 
     cards = user.cards
@@ -241,14 +243,22 @@ def start_transaction(ctx: RequestContext = Depends(process_request)):
 
     if transaction_type == "wire":
         tx = core.start_transaction(
-            ctx.db_session, user, amount, from_account_uuid, to_account_uuid, to_account_number, transaction_type, memo
+            ctx.db_session, user, amount, from_account_uuid, transaction_type, memo, to_account_number=to_account_number
         )
     elif transaction_type == "between_accounts":
         tx = core.start_transaction(
-            ctx.db_session, user, amount, from_account_uuid, to_account_uuid, to_account_number, transaction_type, memo
+            ctx.db_session, user, amount, from_account_uuid, transaction_type, memo, to_account_uuid=to_account_uuid
         )
     elif transaction_type == "external":
         raise HTTPException(status_code=400, detail="External transactions are not supported yet")
+
+    elif transaction_type == "to_contact":
+        to_contact_uuid = transaction_data.get("to_contact_uuid")
+        if not to_contact_uuid:
+            raise HTTPException(status_code=400, detail="to_contact_uuid is required for to_contact transactions")
+        tx = core.start_transaction(
+            ctx.db_session, user, amount, from_account_uuid, transaction_type, memo, to_contact_uuid=to_contact_uuid
+        )
     else:
         raise HTTPException(status_code=400, detail="Invalid transaction type")
     
@@ -289,3 +299,14 @@ def confirm_transaction(ctx: RequestContext = Depends(process_request)):
     ctx.db_session.commit()
 
     return JSONResponse(content={"message": "Completed the transaction successfully", "transaction_id": tx.transaction_code})
+
+
+@app.post("/contacts/list")
+def create_contact(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    contacts = ctx.db_session.query(Contact).filter_by(user_id=user.id).all()
+    contacts = [{"uuid": c.uuid, "name": c.name, "bank_account_number": c.bank_account_number, "email": c.email} for c in contacts]
+    return JSONResponse(content={"contacts": contacts})

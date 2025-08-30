@@ -67,10 +67,9 @@ export const SendRequest = async (url: string, data: any = {}) => {
     const response = await fetch(`${API_ENDPOINT}${url}`, requestOptions);
     
     // Check if response is ok
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
-      throw new Error(errorData.message || `Request failed with status ${response.status}`);
-    }
+    if (!response) {
+  throw new Error("No response from server. Possible network issue.");
+}
     
     const responseData = await response.json();
     
@@ -96,8 +95,8 @@ export const SendRequest = async (url: string, data: any = {}) => {
         localStorage.setItem("currentUser", JSON.stringify(updatedUser));
         break;
     }
-    
-    return { success: true, data: responseData };
+
+    return { code: response.status, success: true, data: responseData };
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : "Request failed");
   }
