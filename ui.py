@@ -5,6 +5,8 @@ import fastapi.staticfiles
 from typing import Dict
 import os
 import uuid
+from io import BytesIO
+import base64
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, constr
@@ -20,7 +22,8 @@ from models import Account, Contact, User, Transaction, Card, AccessToken, OtpSe
 from config import URL, PORT, DATABASE, SESSION_TIMEOUT, STEP1_TIMEOUT
 
 from encrpt import process_response, process_request, RequestContext
-from utils import make_transaction_title
+from utils import make_transaction_title, generate_contact_qr
+
 
 app = APIRouter()
 
@@ -310,3 +313,80 @@ def create_contact(ctx: RequestContext = Depends(process_request)):
     contacts = ctx.db_session.query(Contact).filter_by(user_id=user.id).all()
     contacts = [{"uuid": c.uuid, "name": c.name, "bank_account_number": c.bank_account_number, "email": c.email} for c in contacts]
     return JSONResponse(content={"contacts": contacts})
+
+
+@app.post("/contacts/rm")
+def remove_contact(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    contact_data = ctx.data
+    contact_uuid = contact_data.get("contact_uuid")
+    if not contact_uuid:
+        raise HTTPException(status_code=400, detail="Contact UUID is required")
+
+    contact = ctx.db_session.query(Contact).filter_by(uuid=contact_uuid, user_id=user.id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    ctx.db_session.delete(contact)
+    ctx.db_session.commit()
+
+    return JSONResponse(content={"message": "Contact removed successfully"})
+
+
+@app.post("/contacts/add")
+def start_add_contact(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    contact_data = ctx.data
+    name = contact_data.get("name")
+    bank_account_number = contact_data.get("bank_account_number")
+    email = contact_data.get("email")
+
+    if not name or not bank_account_number or not email:
+        raise HTTPException(status_code=400, detail="Name, bank account number, and email are required")
+
+    if ctx.db_session.query(Contact).filter_by(user_id=user.id, bank_account_number=bank_account_number).first():
+        raise HTTPException(status_code=400, detail="Contact with this bank account number already exists")
+
+    fba=ctx.db_session.query(Account).filter_by(bank_account_number=bank_account_number).first()
+    if not fba:
+        raise HTTPException(status_code=400, detail="Bank account not found")
+
+    new_contact = Contact(
+        user_id=user.id,
+        uuid=str(uuid.uuid4()),
+        name=name,
+        bank_account_number=bank_account_number,
+            bank_account_id=fba.id,
+        email=email,
+        created_at=datetime.now()
+    )
+    ctx.db_session.add(new_contact)
+    ctx.db_session.commit()
+    return JSONResponse(content={"message": "Contact added successfully", "contact_uuid": new_contact.uuid})
+
+
+@app.post("/contacts/me/qrcode")
+def get_my_qr_code(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+
+    account = ctx.db_session.query(Account).filter_by(user_id=user.id, uuid=ctx.data.get("bank_account_uuid")).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    qr_code = generate_contact_qr(account, ctx.data.get("name"), ctx.data.get("email"))
+
+    image_stream = BytesIO()
+    qr_code.get_image().save(image_stream, format="PNG")
+    image_stream.seek(0)
+    image_data = image_stream.read()
+    encoded_image = base64.b64encode(image_data).decode("utf-8")
+    return JSONResponse(content={"qr_code": encoded_image})

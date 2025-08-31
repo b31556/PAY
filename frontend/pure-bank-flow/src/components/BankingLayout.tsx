@@ -10,7 +10,8 @@ import {
   Settings, 
   LogOut,
   Menu,
-  Building2
+  Building2,
+  UserPlus
 } from "lucide-react";
 import { getCurrentUser, logout } from "@/lib/banking-api";
 import { Link, useLocation } from "react-router-dom";
@@ -33,6 +34,7 @@ const BankingLayout = ({ children }: BankingLayoutProps) => {
     { name: "Accounts", href: "/accounts", icon: CreditCard },
     { name: "Transfer", href: "/transfer", icon: ArrowLeftRight },
     { name: "Transactions", href: "/transactions", icon: Receipt },
+    { name: "Contacts", href: "/contacts", icon: UserPlus },
     { name: "Profile", href: "/profile", icon: User },
     { name: "Settings", href: "/settings", icon: Settings },
   ];

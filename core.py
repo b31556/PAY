@@ -218,6 +218,9 @@ def start_transaction(db_session, user, amount, from_account_uuid, transaction_t
         if not from_account:
             raise HTTPException(status_code=404, detail="From account not found")
 
+        if to_contact.created_at < datetime.datetime.now() - datetime.timedelta(hours=config.NEW_CONTACT_WAIT_TIME):
+            raise HTTPException(status_code=400, detail=f"You cannot send money to this contact yet wait {config.NEW_CONTACT_WAIT_TIME} hours")
+
         transaction_code = generate_transaction_code()
         transaction_secret = generate_transaction_secret()
 
@@ -237,8 +240,8 @@ def start_transaction(db_session, user, amount, from_account_uuid, transaction_t
         db_session.commit()
         return transaction
 
-def verify_confirmation_code(transaction: Transaction, confirmation_code: str) -> bool:
-    return True  # TODO: Implement confirmation code verification
+def verify_confirmation_code(confirmation_code: str, transaction: Transaction | None = None) -> bool:
+    return True #TODO: Implement confirmation code verification
 
 
 def finalize_transaction(transaction: Transaction, db_session) -> Transaction:

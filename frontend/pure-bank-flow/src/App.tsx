@@ -13,6 +13,7 @@ import Transfer from "./pages/Transfer";
 import Bills from "./pages/Bills";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
+import Contacts from "./pages/Contacts";
 import NotFound from "./pages/NotFound";
 import "./App.css";
 
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/contacts" element={<Contacts />} />
           <Route path="/transfer" element={<Transfer />} />
           <Route path="/bills" element={<Bills />} />
           <Route path="/profile" element={<Profile />} />

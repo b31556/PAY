@@ -318,3 +318,65 @@ Lists all contacts for the authenticated user.
     }
   ]
 }
+
+
+
+## POST /contacts/add
+
+**Description:**
+Adds a new contact for the authenticated user.
+
+**Request:**
+```json
+{
+  "name": "John Doe",
+  "bank_account_number": "123456789",
+  "email": "john.doe@example.com"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Contact added successfully",
+  "contact": {
+    "uuid": "contact-uuid-1234",
+    "name": "John Doe",
+    "bank_account_number": "123456789",
+    "email": "john.doe@example.com"
+  }
+}
+
+
+## POST /contacts/rm
+
+**Description:**
+Removes a contact for the authenticated user.
+
+**Request:**
+```json
+{
+  "contact_uuid": "contact-uuid-1234"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Contact removed successfully",
+  "contact_uuid": "contact-uuid-1234"
+}
+
+
+## POST /contacts/me/qr
+
+**Description:**
+Generates a QR code with the user's contact information.
+
+**Request:**
+```json
+{}
+```
+
+**Response:**
+file response

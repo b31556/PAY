@@ -1,6 +1,9 @@
 from datetime import datetime
 import os
-from models import Transaction
+from models import Transaction, Account
+import base64
+import qrcode
+from config import FRONTEND_URL,CONTACTS_ADD_PAGE
 
 METHOD_DISPLAY = {
     "pos": "POS",
@@ -78,3 +81,19 @@ def generate_transaction_secret() -> str:
     Generate a unique transaction secret for the given transaction.
     """
     return f"{os.urandom(36).hex().upper()}"
+
+
+def generate_contact_qr(bank_account: Account, name: str, email: str) -> str:
+    """
+    Generate a QR code for the given bank account.
+    """
+    data = f"{FRONTEND_URL}{CONTACTS_ADD_PAGE}?bak={bank_account.bank_account_number}&name={name}&email={email}"
+    return generate_qr_code(data)
+
+
+def generate_qr_code(data: str):
+    """
+    Generate a QR code for the given data.
+    """
+    qr_code = qrcode.make(data)
+    return qr_code
