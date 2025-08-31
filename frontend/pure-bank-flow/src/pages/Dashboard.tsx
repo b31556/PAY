@@ -16,6 +16,8 @@ import {
   Wallet
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import BackendOfflineOverlay from "@/components/BackendOfflineOverlay";
+import { checkBackendConnectivity } from "@/lib/backend-connectivity";
 
 interface Account {
   uuid: string;
@@ -68,11 +70,12 @@ interface BalanceData {
   percent_compared_to_last_month: number;
 }
 
-  const Dashboard = () => {
+const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [balanceData, setBalanceData] = useState<BalanceData | null>(null);
   const [accountsData, setAccountsData] = useState<AccountsData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [backendOffline, setBackendOffline] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -91,6 +94,12 @@ interface BalanceData {
     };
 
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    checkBackendConnectivity().then(ok => {
+      if (!ok) setBackendOffline(true);
+    });
   }, []);
 
   const formatCurrency = (amount: number, currency = "HUF") => {
@@ -122,6 +131,10 @@ interface BalanceData {
             </div>
       </BankingLayout>
     );
+  }
+
+  if (backendOffline) {
+    return <BackendOfflineOverlay />;
   }
 
   return (

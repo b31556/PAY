@@ -158,12 +158,13 @@ async def process_request(request: Request) -> RequestContext:
     time_now = datetime.now()
     session = db_session.query(Session).filter_by(token=token).first()
     print(f"f db time taken: {datetime.now() - time_now}")
-    return RequestContext(
+    yield RequestContext(
         data=data,
         url=url,
         session=session,
         db_session=db_session
     )
+    db_session.close()
 
 
 def process_response(data: dict, context: RequestContext) -> fastapi.responses.JSONResponse:

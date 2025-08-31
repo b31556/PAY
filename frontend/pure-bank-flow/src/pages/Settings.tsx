@@ -17,6 +17,8 @@ import {
   Trash2
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import BackendOfflineOverlay from "@/components/BackendOfflineOverlay";
+import { checkBackendConnectivity } from "@/lib/backend-connectivity";
 
 const Settings = () => {
   const [settings, setSettings] = useState({
@@ -40,12 +42,18 @@ const Settings = () => {
     }
   });
 
+  const [backendOffline, setBackendOffline] = useState(false);
+
   useEffect(() => {
     // Load settings from localStorage
     const savedSettings = localStorage.getItem("bankingSettings");
     if (savedSettings) {
       setSettings(JSON.parse(savedSettings));
     }
+
+    checkBackendConnectivity().then(ok => {
+      if (!ok) setBackendOffline(true);
+    });
   }, []);
 
   const updateSetting = (path: string, value: any) => {
@@ -86,6 +94,10 @@ const Settings = () => {
       variant: "destructive",
     });
   };
+
+  if (backendOffline) {
+    return <BackendOfflineOverlay />;
+  }
 
   return (
     <BankingLayout>

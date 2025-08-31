@@ -53,6 +53,8 @@ async def root(request: fastapi.Request):
     """
     return fastapi.responses.RedirectResponse(url="/app/dashboard")
 
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host='0.0.0.0', port=int(PORT))

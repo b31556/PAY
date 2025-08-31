@@ -15,6 +15,8 @@ import { getCurrentUser, getTransactions, getAccounts, createAccount, toggleCard
 import { CreditCard, Eye, ArrowRight, TrendingUp, TrendingDown, LockIcon, UnlockIcon, Plus, Trash2, Settings, Send, Clock, Shield, Bell, Snowflake, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import BackendOfflineOverlay from "@/components/BackendOfflineOverlay";
+import { checkBackendConnectivity } from "@/lib/backend-connectivity";
 
 interface BankAccount {
   uuid: string;
@@ -68,6 +70,7 @@ const Accounts = () => {
     currency: "HUF"
   });
   const [loading, setLoading] = useState(true);
+  const [backendOffline, setBackendOffline] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -118,6 +121,12 @@ const Accounts = () => {
     };
     
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    checkBackendConnectivity().then(ok => {
+      if (!ok) setBackendOffline(true);
+    });
   }, []);
 
   const formatCurrency = (amount: number, currency = "HUF") => {
@@ -398,6 +407,10 @@ const Accounts = () => {
     return "11773030-" + 
       Math.floor(10000000 + Math.random() * 90000000);
   };
+
+  if (backendOffline) {
+    return <BackendOfflineOverlay />;
+  }
 
   return (
     <BankingLayout>

@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BankingLayout from "@/components/BankingLayout";
 import { getCurrentUser, getTransactions } from "@/lib/banking-api";
+import { checkBackendConnectivity } from "@/lib/backend-connectivity";
+import BackendOfflineOverlay from "@/components/BackendOfflineOverlay";
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 
@@ -36,6 +38,7 @@ const Transactions = () => {
   const [selectedType, setSelectedType] = useState("all");
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [backendOffline, setBackendOffline] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -53,8 +56,15 @@ const Transactions = () => {
         // Fetch transactions with optional account filter
         const accountId = accountFilter !== "all" ? accountFilter : undefined;
         const transactionsData = await getTransactions(accountId);
-        setTransactions(transactionsData);
-        setFilteredTransactions(transactionsData);
+console.log("transactionsData:", transactionsData); // debug
+
+const txs = Array.isArray(transactionsData) 
+  ? transactionsData 
+  : transactionsData?.transactions || [];
+
+setTransactions(txs);
+setFilteredTransactions(txs);
+
       } catch (error) {
         console.error("Error fetching transactions:", error);
       } finally {
@@ -87,6 +97,12 @@ const Transactions = () => {
 
     setFilteredTransactions(filtered);
   }, [transactions, selectedAccount, selectedType, searchTerm]);
+
+  useEffect(() => {
+    checkBackendConnectivity().then(ok => {
+      if (!ok) setBackendOffline(true);
+    });
+  }, [searchParams]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -129,6 +145,10 @@ const Transactions = () => {
         </div>
       </BankingLayout>
     );
+  }
+
+  if (backendOffline) {
+    return <BackendOfflineOverlay />;
   }
 
   return (

@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "@/hooks/use-toast";
 import { SendRequest } from "@/lib/banking-api";
 import { UserPlus, Trash2, QrCode, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
+import BackendOfflineOverlay from "@/components/BackendOfflineOverlay";
+import { checkBackendConnectivity } from "@/lib/backend-connectivity";
 
 interface Contact {
   uuid: string;
@@ -34,6 +36,7 @@ interface BankAccount {
 const Contacts = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAddLoading, setIsAddLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showQrDialog, setShowQrDialog] = useState(false);
   const [showQrSetupDialog, setShowQrSetupDialog] = useState(false);
@@ -46,6 +49,8 @@ const Contacts = () => {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [qrSetupForm, setQrSetupForm] = useState({ bank_account_uuid: "", name: "", email: "" });
   const [isQrLoading, setIsQrLoading] = useState(false);
+  const [user, setUser] = useState<{ full_name: string; email: string } | null>(null);
+  const [backendOffline, setBackendOffline] = useState(false);
 
   // Kontaktok betöltése
   const fetchContacts = async () => {
@@ -84,9 +89,30 @@ const Contacts = () => {
     }
   };
 
+  // Felhasználó adatainak lekérése
+  const fetchUser = async () => {
+    try {
+      const response = await SendRequest("/me");
+      if (response.data) {
+        setUser({
+          full_name: response.data.full_name,
+          email: response.data.email,
+        });
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
+    // Backend connectivity check
+    checkBackendConnectivity().then(ok => {
+      if (!ok) setBackendOffline(true);
+    });
+
     fetchContacts();
     fetchAccounts();
+    fetchUser();
     // URL paraméterek figyelése hozzáadáshoz
     const params = new URLSearchParams(window.location.search);
     const bak = params.get("bak");
@@ -100,7 +126,7 @@ const Contacts = () => {
 
   // Kontakt hozzáadása
   const handleAddContact = async () => {
-    setIsLoading(true);
+    setIsAddLoading(true);
     try {
       const payload = {
         name: addForm.name,
@@ -117,6 +143,11 @@ const Contacts = () => {
         setShowAddDialog(false);
         setAddForm({ name: "", bank_account_number: "", email: "" });
         setUrlAddContact(null);
+        const params = new URLSearchParams(window.location.search);
+        params.delete("bak");
+        params.delete("name");
+        params.delete("email");
+        window.history.replaceState({}, "", `${window.location.pathname}?${params}`);
       } else {
         toast({
           title: "Hiba hozzáadáskor",
@@ -131,14 +162,14 @@ const Contacts = () => {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsAddLoading(false);
     }
   };
 
   // Kontakt törlése
   const handleRemoveContact = async () => {
     if (!pendingRemove) return;
-    setIsLoading(true);
+    setIsAddLoading(true);
     try {
       const response = await SendRequest("/contacts/rm", { contact_uuid: pendingRemove.uuid });
       if (response.code === 200) {
@@ -162,7 +193,7 @@ const Contacts = () => {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsAddLoading(false);
     }
   };
 
@@ -170,8 +201,8 @@ const Contacts = () => {
   const handleShowQrSetup = () => {
     setQrSetupForm({
       bank_account_uuid: accounts.length > 0 ? accounts[0].uuid : "",
-      name: "",
-      email: "",
+      name: user?.full_name || "",
+      email: user?.email || "",
     });
     setShowQrSetupDialog(true);
   };
@@ -218,121 +249,129 @@ const Contacts = () => {
   }, [urlAddContact]);
 
   return (
-    <BankingLayout>
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold">Kapcsolatok</h1>
-          <p className="text-muted-foreground mt-2">Kezelje banki kontaktjait, adjon hozzá, töröljön, vagy ossza meg QR kóddal.</p>
-        </div>
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Kontakt lista */}
-          <div className="flex-1">
-            <Card>
-              <CardHeader>
-                <CardTitle>Kontaktok</CardTitle>
-                <CardDescription>Az összes mentett banki kontaktja</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="mb-4 bg-gradient-to-r from-banking-primary to-banking-secondary"
-                  onClick={() => { setShowAddDialog(true); setAddForm({ name: "", bank_account_number: "", email: "" }); }}
-                  disabled={isLoading}
-                >
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Új kontakt hozzáadása
-                </Button>
+    <>
+      {backendOffline && <BackendOfflineOverlay />}
+      {!backendOffline && (
+        <BankingLayout>
+          <div className="space-y-8">
+            <div>
+              <h1 className="text-3xl font-bold">Kapcsolatok</h1>
+              <p className="text-muted-foreground mt-2">Kezelje banki kontaktjait, adjon hozzá, töröljön, vagy ossza meg QR kóddal.</p>
+            </div>
+            <div className="flex flex-col lg:flex-row gap-8">
+              {/* Kontakt lista */}
+              <div className="flex-1">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Kontaktok</CardTitle>
+                    <CardDescription>Az összes mentett banki kontaktja</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      className="mb-4 bg-gradient-to-r from-banking-primary to-banking-secondary"
+                      onClick={() => { setShowAddDialog(true); setAddForm({ name: "", bank_account_number: "", email: "" }); }}
+                      disabled={isAddLoading}
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Új kontakt hozzáadása
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="mb-4 ml-2"
+                      onClick={handleShowQrSetup}
+                    >
+                      <QrCode className="w-4 h-4 mr-2" />
+                      Saját QR kód megtekintése
+                    </Button>
+                    {isLoading ? (
+                      <div className="flex items-center justify-center p-4">
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        <span>Betöltés...</span>
+                      </div>
+                    ) : contacts.length === 0 ? (
+                      <div className="p-4 text-center text-muted-foreground">
+                        Nincs mentett kontakt.
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {contacts.map(contact => (
+                          <div key={contact.uuid} className="flex items-center justify-between py-3">
+                            <div>
+                              <div className="font-medium">{contact.name}</div>
+                              <div className="text-xs text-muted-foreground">{contact.bank_account_number} &bull; {contact.email}</div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setPendingRemove(contact)}
+                              title="Kontakt törlése"
+                            >
+                              <Trash2 className="w-5 h-5 text-red-500" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </div>
+
+          {/* Kontakt hozzáadás dialógus */}
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Kontakt hozzáadása</DialogTitle>
+                <DialogDescription>
+                  Adja meg a kontakt adatait, vagy erősítse meg a hozzáadást.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label>Név</Label>
+                  <Input
+                    value={addForm.name}
+                    onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Név"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Banki számlaszám</Label>
+                  <Input
+                    value={addForm.bank_account_number}
+                    onChange={e => setAddForm(f => ({ ...f, bank_account_number: e.target.value }))}
+                    placeholder="Számlaszám"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    value={addForm.email}
+                    onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))}
+                    placeholder="Email"
+                    type="email"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
                 <Button
                   variant="outline"
-                  className="mb-4 ml-2"
-                  onClick={handleShowQrSetup}
-                >
-                  <QrCode className="w-4 h-4 mr-2" />
-                  Saját QR kód megtekintése
-                </Button>
-                {isLoading ? (
-                  <div className="flex items-center justify-center p-4">
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    <span>Betöltés...</span>
-                  </div>
-                ) : contacts.length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground">
-                    Nincs mentett kontakt.
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {contacts.map(contact => (
-                      <div key={contact.uuid} className="flex items-center justify-between py-3">
-                        <div>
-                          <div className="font-medium">{contact.name}</div>
-                          <div className="text-xs text-muted-foreground">{contact.bank_account_number} &bull; {contact.email}</div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setPendingRemove(contact)}
-                          title="Kontakt törlése"
-                        >
-                          <Trash2 className="w-5 h-5 text-red-500" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-
-      {/* Kontakt hozzáadás dialógus */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Kontakt hozzáadása</DialogTitle>
-            <DialogDescription>
-              Adja meg a kontakt adatait, vagy erősítse meg a hozzáadást.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Név</Label>
-              <Input
-                value={addForm.name}
-                onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="Név"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Banki számlaszám</Label>
-              <Input
-                value={addForm.bank_account_number}
-                onChange={e => setAddForm(f => ({ ...f, bank_account_number: e.target.value }))}
-                placeholder="Számlaszám"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input
-                value={addForm.email}
-                onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))}
-                placeholder="Email"
-                type="email"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => { setShowAddDialog(false); setUrlAddContact(null); }}
-            >
-              Mégsem
-            </Button>
-            <Button
-              onClick={handleAddContact}
+                  onClick={() => { setShowAddDialog(false); setUrlAddContact(null); const params = new URLSearchParams(window.location.search);
+        params.delete("bak");
+        params.delete("name");
+        params.delete("email");
+        window.history.replaceState({}, "", `${window.location.pathname}?${params}`);
+      }}
+    >
+      Mégsem
+    </Button>
+    <Button
+      onClick={handleAddContact}
               className="bg-gradient-to-r from-banking-primary to-banking-secondary"
-              disabled={isLoading || !addForm.name || !addForm.bank_account_number || !addForm.email}
+              disabled={isAddLoading || !addForm.name || !addForm.bank_account_number || !addForm.email}
             >
-              {isLoading ? (
+              {isAddLoading ? (
                 <div className="flex items-center">
                   <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                   Hozzáadás...
@@ -377,9 +416,9 @@ const Contacts = () => {
             <Button
               onClick={handleRemoveContact}
               className="bg-gradient-to-r from-red-500 to-red-700"
-              disabled={isLoading}
+              disabled={isAddLoading}
             >
-              {isLoading ? (
+              {isAddLoading ? (
                 <div className="flex items-center">
                   <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                   Törlés...
@@ -470,7 +509,7 @@ const Contacts = () => {
         </DialogContent>
       </Dialog>
 
-      {/* QR kód dialógus */}
+        {/* QR kód dialógus */}
       <Dialog open={showQrDialog} onOpenChange={setShowQrDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -491,7 +530,9 @@ const Contacts = () => {
         </DialogContent>
       </Dialog>
     </BankingLayout>
-  );
-};
+    )}
+  </>
+);
+}
 
 export default Contacts;
