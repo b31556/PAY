@@ -437,7 +437,7 @@ const Transfer = () => {
           setShowConfirmationDialog(false);
           setPendingTransaction(null);
           setTransactionStatus("idle");
-        }, 3000);
+        }, 1000);
       }
     } catch (error) {
       setTransactionStatus("failed");
@@ -465,7 +465,7 @@ const Transfer = () => {
       
       const response = await SendRequest("/confirm-transaction", confirmPayload);
       
-      if (response.success) {
+      if (response.success && response.code === 200) {
         setTransactionStatus("confirmed");
         toast({
           title: "Transfer Completed",
@@ -494,6 +494,12 @@ const Transfer = () => {
           setTransactionStatus("idle");
         }, 3000);
       }
+      setTransactionStatus("failed");
+      toast({
+        title: "Confirmation Failed",
+        description: response.data?.detail,
+        variant: "destructive",
+      });
     } catch (error) {
       setTransactionStatus("failed");
       toast({

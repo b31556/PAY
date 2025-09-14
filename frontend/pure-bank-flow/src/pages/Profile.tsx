@@ -185,11 +185,7 @@ const Profile = () => {
                     <span>Phone Verified</span>
                   </div>
                 </div>
-                {/* Fizikai kártyák kezelése */}
-                <div className="mt-8">
-                  <h3 className="text-lg font-semibold mb-2">Fizikai kártyák</h3>
-                  <CardsManager accountId={user.accounts?.[0]?.id || ""} cardHolder={user.name || ""} />
-                </div>
+                
               </CardContent>
             </Card>
           </div>

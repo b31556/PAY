@@ -404,29 +404,33 @@ def create_transaction(ctx: RequestContext = Depends(process_request)):
     page = ctx.data.get("page", 1)
 
     amount_transactions = ctx.db_session.query(Transaction.id).filter(
-        (Transaction.sender_id == user.id) | (Transaction.receiver_id == user.id)
+        (Transaction.sender_id == user.id) | (Transaction.receiver_id == user.id),
+        Transaction.state == "completed"
     ).count()
 
     if page < 1 or (page - 1) * 20 >= amount_transactions:
         raise HTTPException(status_code=400, detail="Invalid page number")
 
     transactions = ctx.db_session.query(Transaction).filter(
-        (Transaction.sender_id == user.id) | (Transaction.receiver_id == user.id)
+        (Transaction.sender_id == user.id) | (Transaction.receiver_id == user.id),
+        Transaction.state == "completed"
     ).order_by(Transaction.created_at.desc()).limit(20).offset((page - 1) * 20).all()
 
     this_month = datetime.now().month
 
     total_income = ctx.db_session.query(func.sum(Transaction.amount)).filter(
         Transaction.receiver_id == user.id,
+        Transaction.state == "completed",
         func.extract("month", Transaction.created_at) == this_month
     ).scalar()
 
     total_expenses = ctx.db_session.query(func.sum(Transaction.amount)).filter(
         Transaction.sender_id == user.id,
+        Transaction.state == "completed",
         func.extract("month", Transaction.created_at) == this_month
     ).scalar()
-    total_income = total_income if total_income else 0
-    total_expenses = total_expenses if total_expenses else 0
+    total_income = float(total_income) if total_income else 0
+    total_expenses = float(total_expenses) if total_expenses else 0
     response = {"total": amount_transactions, "transactions": [], "total_expenses": total_expenses, "total_income": total_income, "page": page, "per_page": 20, "total_pages": (amount_transactions + 19) // 20}
     for tx in transactions:
         if not tx:
@@ -441,5 +445,34 @@ def create_transaction(ctx: RequestContext = Depends(process_request)):
             "title": make_transaction_title(tx),
             "memo": tx.memo
         })
+
+    return JSONResponse(content=response)
+
+
+@app.post("/transactions/details")
+def get_transaction_details(ctx: RequestContext = Depends(process_request)):
+    user: User = ctx.session.user
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    transaction_id = ctx.data.get("transaction_id")
+    if not transaction_id:
+        raise HTTPException(status_code=400, detail="Transaction ID is required")
+
+    tx: Transaction = ctx.db_session.query(Transaction).filter_by(transaction_code=transaction_id).first()
+    if not tx or (tx.sender_id != user.id and tx.receiver_id != user.id):
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    response = {
+        "transaction_id": tx.transaction_code,
+        "from_account": tx.sender_account.uuid if tx.sender_account else None,
+        "to_account": tx.receiver_account.uuid if tx.receiver_account else None,
+        "amount": tx.amount,
+        "state": tx.state,
+        "created_at": str(tx.created_at),
+        "title": make_transaction_title(tx),
+        "memo": tx.memo,
+        "completed_via": tx.completed_via
+    }
 
     return JSONResponse(content=response)

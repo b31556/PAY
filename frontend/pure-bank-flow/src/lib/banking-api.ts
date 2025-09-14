@@ -73,28 +73,7 @@ export const SendRequest = async (url: string, data: any = {}) => {
     
     const responseData = await response.json();
     
-    // Handle local notifications for specific actions
-    switch (url) {
-      case "/transfer":
-        toast({
-          title: "Transfer Successful",
-          description: `$${data.amount} transferred from ${data.fromAccount} to ${data.toAccount}`,
-        });
-        break;
-      
-      case "/pay-bill":
-        toast({
-          title: "Bill Paid",
-          description: `$${data.amount} paid to ${data.biller}`,
-        });
-        break;
-      
-      case "/profile/update":
-        const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
-        const updatedUser = { ...currentUser, ...data };
-        localStorage.setItem("currentUser", JSON.stringify(updatedUser));
-        break;
-    }
+
 
     return { code: response.status, success: true, data: responseData };
   } catch (error) {

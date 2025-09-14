@@ -150,13 +150,13 @@ def request_bank_card(db_session, user, pincode, connected_account_uuid):
 
 
 
-def start_transaction(db_session, user, amount, from_account_uuid, transaction_type, memo, to_account_uuid=None, to_bank_account=None, to_contact_uuid=None):
+def start_transaction(db_session, user, amount, from_account_uuid, transaction_type, memo, to_account_uuid=None, to_account_number=None, to_contact_uuid=None):
     if transaction_type == "wire":
         from_account = db_session.query(Account).filter_by(uuid=from_account_uuid, user_id=user.id).first()
         if not from_account:
             raise HTTPException(status_code=404, detail="From account not found")
 
-        to_account = db_session.query(Account).filter_by(bank_account_number=to_bank_account).first()
+        to_account = db_session.query(Account).filter_by(bank_account_number=to_account_number).first()
         if not to_account:
             raise HTTPException(status_code=404, detail="Bank number not found")
         
@@ -218,8 +218,8 @@ def start_transaction(db_session, user, amount, from_account_uuid, transaction_t
         if not from_account:
             raise HTTPException(status_code=404, detail="From account not found")
 
-        if to_contact.created_at < datetime.datetime.now() - datetime.timedelta(hours=config.NEW_CONTACT_WAIT_TIME):
-            raise HTTPException(status_code=400, detail=f"You cannot send money to this contact yet wait {config.NEW_CONTACT_WAIT_TIME} hours")
+        if to_contact.created_at > datetime.datetime.now() - datetime.timedelta(hours=config.NEW_CONTACT_WAIT_TIME):
+            raise HTTPException(status_code=400, detail=f"You cannot send money to this contact yet wait {config.NEW_CONTACT_WAIT_TIME} hours after creation")
 
         transaction_code = generate_transaction_code()
         transaction_secret = generate_transaction_secret()
