@@ -139,7 +139,7 @@ def decrypt_with_box(data: bytes, server_enc_private, client_enc_public) -> byte
 
 @dataclass
 class RequestContext:
-    data: Union[dict, str]
+    data: dict
     url: str
     session: Session
     db_session: any
@@ -158,6 +158,7 @@ async def process_request(request: Request) -> RequestContext:
     time_now = datetime.now()
     session = db_session.query(Session).filter_by(token=token).first()
     print(f"f db time taken: {datetime.now() - time_now}")
+    data = data if isinstance(data, dict) else {}
     yield RequestContext(
         data=data,
         url=url,

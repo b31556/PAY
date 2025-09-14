@@ -380,3 +380,76 @@ Generates a QR code with the user's contact information.
 
 **Response:**
 file response
+
+
+## POST /transactions
+
+**Description:**
+Returns a paginated list of transactions for the authenticated user.
+
+**Request:**
+```json
+{
+  "page": 1
+}
+```
+
+**Response:**
+```json
+{
+  "total_expenses": 500.00,
+  "total_income": 1000.00,
+  "transactions": [
+    {
+      "id": "tx-1234",
+      "state": "pending", // or "completed", "failed" should determine the color of the transaction item
+      "type": "expense", // or "income" should determine the icon of the transaction item
+      "amount": 100.00,
+      "memo": "memo",
+      "title": "Between my accounts transfer", // you can use this title to show in the transaction list
+      "created_at": "2025-08-11T12:34:56Z" // you can use this to show when the transaction happened, already in desc order
+    },
+    {
+      "id": "tx-1235",
+      "state": "completed", // or "pending", "failed" should determine the color of the transaction item
+      "type": "income", // or "expense" should determine the icon of the transaction item
+      "amount": 200.00,
+      "memo": "memo",
+      "title": "Between my accounts transfer", // you can use this title to show in the transaction list
+      "created_at": "2025-08-10T11:22:33Z" // you can use this to show when the transaction happened, already in desc order
+    }
+  ],
+  "total": 2,
+  "page": 1,
+  "per_page": 20,
+  "total_pages": 1
+}
+
+
+## POST /transactions/details
+
+**Description:**
+Retrieves detailed information about a specific transaction.
+
+**Request:**
+```json
+{
+  "transaction_id": "tx-1234"
+}
+```
+
+**Response:**
+```json
+{
+  "transaction": {
+    "id": "tx-1234",
+    "state": "pending",
+    "type": "expense",
+    "amount": 100.00,
+    "memo": "memo",
+    "title": "Between my accounts transfer",
+    "created_at": "2025-08-11T12:34:56Z",
+    "from_account": "account-uuid-1234",
+    "to_account": "account-uuid-5678"
+  }
+}
