@@ -22,25 +22,6 @@ def recalculate_balance(account_id, db_session):
     db_session.commit()
     return total
 
-
-
-def make_transaction(amount: float, merchant: User):
-    watch_code = os.urandom(16).hex()  # Generate a random watch code
-    secret = os.urandom(32).hex()  # Generate a random transaction secret
-    transaction_code = os.urandom(8).hex()
-
-    transaction = Transaction(        
-        amount=amount,
-        merchant_id=merchant.id,
-        state="created",
-        watch_code=watch_code,
-        transaction_secret=secret,
-        transaction_code=transaction_code
-    )
-    db_session.add(transaction)
-    db_session.commit()
-    return transaction
-    
 def generate_iban():
     country_code = config.CC_CODE
 

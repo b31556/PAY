@@ -145,7 +145,7 @@ class RequestContext:
     db_session: any
 
 
-async def process_request(request: Request) -> RequestContext:
+async def process_request(request: Request):
     db_session = next(get_db_session())
     try:
         data = await request.json()
