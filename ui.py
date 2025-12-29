@@ -14,7 +14,7 @@ import fastapi
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from fastapi.encoders import jsonable_encoder
-from requests_cache import datetime
+from datetime import datetime
 from sqlalchemy import func
 import auth
 import core
