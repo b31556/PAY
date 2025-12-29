@@ -22,7 +22,6 @@ from config import PORT, URL, DATABASE
 
 import ui
 
-import auth_ui
 
 templates = Jinja2Templates(directory="templates")
 
